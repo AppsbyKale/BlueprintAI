@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.blueprintai.data.DiagnosticLog
+import com.example.blueprintai.data.DownloadProgress
 import com.example.blueprintai.data.Settings as AppSettings
 import java.text.SimpleDateFormat
 import java.util.*
@@ -40,10 +41,11 @@ fun LogsDialog(
                 if (logs.isEmpty()) {
                     Text("No logs available.", modifier = Modifier.padding(16.dp))
                 } else {
+                    val dateFormat = remember { SimpleDateFormat("HH:mm:ss.SSS", Locale.US) }
                     LazyColumn {
                         items(logs.reversed()) { log ->
                             Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                                val time = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault()).format(Date(log.timestamp))
+                                val time = dateFormat.format(Date(log.timestamp))
                                 Text(
                                     text = "[$time] ${log.level}/${log.tag}",
                                     style = MaterialTheme.typography.labelSmall,
@@ -114,15 +116,24 @@ fun BackupDialog(
 @Composable
 fun AiModelsDialog(
     settings: AppSettings,
+    downloadProgress: DownloadProgress = DownloadProgress(),
     onDismiss: () -> Unit,
     onUpdateLocalPath: (String) -> Unit,
     onUpdateDesktopUrl: (String) -> Unit,
     onUpdateGeminiKey: (String) -> Unit,
-    onRequestPermission: () -> Unit
+    onRequestPermission: () -> Unit,
+    onStartDownload: (String) -> Unit
 ) {
     var localPath by remember { mutableStateOf(settings.localModelPath) }
     var desktopUrl by remember { mutableStateOf(settings.desktopUrl) }
     var geminiKey by remember { mutableStateOf(settings.geminiApiKey) }
+
+    LaunchedEffect(downloadProgress.isCompleted) {
+        if (downloadProgress.isCompleted) {
+            localPath = "/storage/emulated/0/Download/AI_Models/gemma-4-E2B-it.litertlm"
+            onUpdateLocalPath(localPath)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -136,11 +147,65 @@ fun AiModelsDialog(
                     label = { Text("Model Path (.litertlm)") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                Button(
-                    onClick = onRequestPermission,
-                    modifier = Modifier.padding(top = 8.dp)
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Grant All Files Permission")
+                    Button(
+                        onClick = onRequestPermission,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Grant Permission", style = MaterialTheme.typography.labelSmall)
+                    }
+                    
+                    Button(
+                        onClick = {
+                            onStartDownload("https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm")
+                        },
+                        enabled = !downloadProgress.isDownloading,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            if (downloadProgress.isDownloading) "Downloading..." else "Download Model",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+
+                if (downloadProgress.isDownloading) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { downloadProgress.progressFraction },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    val downloadedMb = downloadProgress.bytesDownloaded / (1024 * 1024)
+                    val totalMb = downloadProgress.totalBytes / (1024 * 1024)
+                    val pct = (downloadProgress.progressFraction * 100).toInt()
+                    Text(
+                        text = if (totalMb > 0) "$downloadedMb MB / $totalMb MB ($pct%)" else "$downloadedMb MB downloaded...",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+
+                if (downloadProgress.isCompleted) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "✅ Download complete! Saved to Download/AI_Models/",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color(0xFF4CAF50)
+                    )
+                }
+
+                if (downloadProgress.error != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "❌ Download error: ${downloadProgress.error}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))

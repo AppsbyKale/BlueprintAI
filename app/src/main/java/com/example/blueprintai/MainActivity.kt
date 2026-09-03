@@ -72,6 +72,7 @@ fun MainScreen(
     val modelStatus by settingsViewModel.modelStatus.collectAsState()
     val exportState by artifactViewModel.exportState.collectAsState()
     val currentFolderId by chatViewModel.currentFolderId.collectAsState()
+    val downloadProgress by settingsViewModel.downloadProgress.collectAsState()
 
     val folders by chatViewModel.folders.collectAsState()
     val context = LocalContext.current
@@ -272,6 +273,7 @@ fun MainScreen(
     if (showAiModelsDialog) {
         AiModelsDialog(
             settings = settings,
+            downloadProgress = downloadProgress,
             onDismiss = { showAiModelsDialog = false },
             onUpdateLocalPath = { settingsViewModel.updateLocalPath(it) },
             onUpdateDesktopUrl = { settingsViewModel.updateDesktopUrl(it) },
@@ -281,6 +283,9 @@ fun MainScreen(
                     data = Uri.parse("package:${context.packageName}")
                 }
                 context.startActivity(intent)
+            },
+            onStartDownload = { url ->
+                settingsViewModel.downloadGemmaModel(url)
             }
         )
     }

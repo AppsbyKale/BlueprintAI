@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.blueprintai.data.BackupManager
 import com.example.blueprintai.data.LogManager
+import com.example.blueprintai.data.ModelDownloader
 import com.example.blueprintai.data.Settings
 import com.example.blueprintai.data.SettingsDao
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,12 +17,15 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val settingsDao: SettingsDao,
     private val backupManager: BackupManager,
-    private val logManager: LogManager
+    private val logManager: LogManager,
+    private val modelDownloader: ModelDownloader
 ) : ViewModel() {
 
     val settings: StateFlow<Settings> = settingsDao.getSettings()
         .map { it ?: Settings() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Settings())
+
+    val downloadProgress = modelDownloader.downloadProgress
 
     val logs = logManager.logs
 
@@ -81,4 +85,20 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun exportLogs(): String = logManager.exportTrainingData()
+
+    fun downloadGemmaModel(
+        url: String = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
+        targetPath: String = "/storage/emulated/0/Download/AI_Models/gemma-4-E2B-it.litertlm"
+    ) {
+        viewModelScope.launch {
+            modelDownloader.downloadModel(url, targetPath)
+            if (modelDownloader.downloadProgress.value.isCompleted) {
+                updateLocalPath(targetPath)
+            }
+        }
+    }
+
+    fun resetDownloadProgress() {
+        modelDownloader.resetProgress()
+    }
 }
