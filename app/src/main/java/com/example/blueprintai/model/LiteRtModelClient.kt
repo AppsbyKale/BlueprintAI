@@ -27,8 +27,14 @@ class LiteRtModelClient(
     override fun generateResponse(prompt: String): Flow<String> = callbackFlow {
         val inference = try {
             getInference()
-        } catch (e: Exception) {
-            trySend("Error loading model: ${e.localizedMessage}")
+        } catch (e: Throwable) {
+            val msg = e.localizedMessage ?: e.message ?: "Invalid or incompatible model file format"
+            trySend(
+                "Error loading local model at path:\n'$modelPath'\n\n" +
+                "Details: $msg\n\n" +
+                "💡 Tip: MediaPipe GenAI requires a compiled MediaPipe .bin or .task model file (e.g., Gemma 2b / Gemma 3 in .task format). " +
+                "You can also configure a Gemini API Key in Settings (3-dot menu -> AI Models) for cloud generation."
+            )
             close()
             return@callbackFlow
         }
@@ -36,8 +42,8 @@ class LiteRtModelClient(
         try {
             val result = inference.generateResponse(prompt)
             trySend(result)
-        } catch (e: Exception) {
-            trySend("Error: ${e.localizedMessage}")
+        } catch (e: Throwable) {
+            trySend("Error generating response: ${e.localizedMessage ?: e.message}")
         } finally {
             close()
         }
@@ -46,6 +52,10 @@ class LiteRtModelClient(
     }
 
     override suspend fun isAvailable(): Boolean {
-        return File(modelPath).exists()
+        return try {
+            File(modelPath).exists()
+        } catch (e: Exception) {
+            false
+        }
     }
 }

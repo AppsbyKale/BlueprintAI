@@ -68,6 +68,21 @@ class ChatViewModel @Inject constructor(
     private val settings = settingsDao.getSettings()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Settings())
 
+    init {
+        viewModelScope.launch {
+            folderRepository.getFolders().collect { list ->
+                if (_currentFolderId.value == null) {
+                    if (list.isNotEmpty()) {
+                        _currentFolderId.value = list.first().id
+                    } else {
+                        val newId = folderRepository.createFolder("General")
+                        _currentFolderId.value = newId
+                    }
+                }
+            }
+        }
+    }
+
     fun selectFolder(id: Long) {
         _currentFolderId.value = id
     }
@@ -108,10 +123,20 @@ class ChatViewModel @Inject constructor(
     }
 
     fun sendMessage(content: String) {
-        val folderId = _currentFolderId.value ?: return
         if (content.isBlank() || _isGenerating.value) return
 
         viewModelScope.launch {
+            var folderId = _currentFolderId.value
+            if (folderId == null) {
+                val existingList = folderRepository.getFolders().first()
+                folderId = if (existingList.isNotEmpty()) {
+                    existingList.first().id
+                } else {
+                    folderRepository.createFolder("General")
+                }
+                _currentFolderId.value = folderId
+            }
+
             _isGenerating.value = true
             _currentStreamingResponse.value = ""
             
