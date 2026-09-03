@@ -2,16 +2,17 @@ package com.example.blueprintai.model
 
 import io.ktor.client.*
 import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.utils.io.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import java.net.URL
 
 @Serializable
 data class ChatRequest(
@@ -50,7 +51,8 @@ class RemoteModelClient(
 
     override fun generateResponse(prompt: String): Flow<String> = flow {
         try {
-            val response = httpClient.post("$baseUrl/chat/completions") {
+            val cleanUrl = baseUrl.trim().trimEnd('/')
+            val response = httpClient.post("$cleanUrl/chat/completions") {
                 setBody(
                     ChatRequest(
                         messages = listOf(ChatMessage(role = "user", content = prompt))
@@ -77,12 +79,12 @@ class RemoteModelClient(
         } catch (e: Exception) {
             emit("Error: ${e.localizedMessage}")
         }
-    }
+    }.flowOn(Dispatchers.IO)
 
-    override suspend fun isAvailable(): Boolean {
-        return try {
-            val url = URL(baseUrl)
-            val response = httpClient.get("${url.protocol}://${url.host}:${url.port}/v1/models")
+    override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val cleanUrl = baseUrl.trim().trimEnd('/')
+            val response = httpClient.get("$cleanUrl/models")
             response.status.value in 200..299
         } catch (e: Exception) {
             false

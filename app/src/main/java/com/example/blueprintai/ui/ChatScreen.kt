@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.blueprintai.data.Message
@@ -45,6 +46,7 @@ fun ChatScreen(
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     val isAtBottom by remember {
@@ -152,6 +154,7 @@ fun ChatScreen(
             value = inputText,
             onValueChange = { inputText = it },
             onSend = {
+                keyboardController?.hide()
                 viewModel.sendMessage(inputText)
                 inputText = ""
             },

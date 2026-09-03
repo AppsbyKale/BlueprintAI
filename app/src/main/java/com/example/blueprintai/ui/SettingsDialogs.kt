@@ -124,9 +124,9 @@ fun AiModelsDialog(
     onRequestPermission: () -> Unit,
     onStartDownload: (String) -> Unit
 ) {
-    var localPath by remember { mutableStateOf(settings.localModelPath) }
-    var desktopUrl by remember { mutableStateOf(settings.desktopUrl) }
-    var geminiKey by remember { mutableStateOf(settings.geminiApiKey) }
+    var localPath by remember(settings.localModelPath) { mutableStateOf(settings.localModelPath) }
+    var desktopUrl by remember(settings.desktopUrl) { mutableStateOf(settings.desktopUrl) }
+    var geminiKey by remember(settings.geminiApiKey) { mutableStateOf(settings.geminiApiKey) }
 
     LaunchedEffect(downloadProgress.isCompleted) {
         if (downloadProgress.isCompleted) {
@@ -235,9 +235,17 @@ fun AiModelsDialog(
         confirmButton = {
             TextButton(onClick = {
                 onUpdateLocalPath(localPath)
-                val finalUrl = if (desktopUrl.startsWith("http")) desktopUrl else "http://$desktopUrl"
-                val withV1 = if (finalUrl.endsWith("/v1")) finalUrl else "$finalUrl/v1"
-                onUpdateDesktopUrl(withV1)
+                var cleaned = desktopUrl.trim()
+                if (cleaned.isNotBlank()) {
+                    if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
+                        cleaned = "http://$cleaned"
+                    }
+                    cleaned = cleaned.trimEnd('/')
+                    if (!cleaned.endsWith("/v1")) {
+                        cleaned = "$cleaned/v1"
+                    }
+                }
+                onUpdateDesktopUrl(cleaned)
                 onUpdateGeminiKey(geminiKey)
                 onDismiss()
             }) {

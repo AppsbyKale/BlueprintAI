@@ -2,10 +2,13 @@ package com.example.blueprintai.model
 
 import android.content.Context
 import com.google.ai.edge.litertlm.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class LiteRtModelClient(
@@ -16,9 +19,9 @@ class LiteRtModelClient(
     @Volatile private var engine: Engine? = null
 
     @OptIn(ExperimentalApi::class)
-    private fun getOrInitEngine(): Engine {
-        engine?.let { return it }
-        return synchronized(this) {
+    private suspend fun getOrInitEngine(): Engine = withContext(Dispatchers.Default) {
+        engine?.let { return@withContext it }
+        synchronized(this@LiteRtModelClient) {
             engine?.let { return@synchronized it }
             
             ExperimentalFlags.enableSpeculativeDecoding = true
@@ -90,10 +93,10 @@ class LiteRtModelClient(
         }
 
         awaitClose { /* No-op */ }
-    }
+    }.flowOn(Dispatchers.Default)
 
-    override suspend fun isAvailable(): Boolean {
-        return try {
+    override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
+        return@withContext try {
             val file = File(modelPath)
             file.exists() && file.length() > 1024 * 1024 // > 1MB
         } catch (e: Exception) {
