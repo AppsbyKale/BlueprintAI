@@ -20,7 +20,7 @@
 - [x] Folder CRUD operations
 - [x] Message persistence with Room
 - [x] Global and per-folder search (Room FTS)
-- [x] New folder dialog with attachments (Logic in place, UI for attachments in Phase 5)
+- [x] New folder dialog with attachments
 - [x] Key-decision star / highlight+tag functionality
 
 ## Phase 4 – Artifacts & Export
@@ -46,3 +46,15 @@
 - [x] VoiceManager for STT (SpeechRecognizer) and TTS (TextToSpeech)
 - [x] Integration with ChatViewModel (automatic send/speak responses)
 - [x] UI Controls (Mic button in input bar, TTS toggle in Settings)
+
+## Phase 8 – Database Recovery & Keyboard Layout Fixes
+- [x] Fix Room schema version mismatch (incremented to version 4 with fallbackToDestructiveMigration)
+- [x] Position chatbox at bottom of screen with `adjustResize` and IME window insets
+- [x] Add top notice bar for attachments, AI generation, and voice listening status
+- [x] Fix chat scroll behavior to allow scrolling up during live AI response streaming
+
+## Phase 9 – Visual Learning Features & UX Consolidation
+- [x] Add "Concept Map & Architecture Guide" artifact option to folder export (ASCII flowcharts, layer breakdowns, plain-English glossary)
+- [x] Add long-press "Explain Concepts & Relationships 💡" dialog on AI messages
+- [x] Consolidate export UX by removing redundant hammer icon from TopAppBar
+- [x] Initialize Git repository and add `.idea/vcs.xml` for IDE integration

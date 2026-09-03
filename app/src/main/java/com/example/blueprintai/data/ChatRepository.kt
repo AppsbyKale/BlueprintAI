@@ -61,6 +61,31 @@ class ChatRepository @Inject constructor(
         messageDao.updateMessageMetadata(messageId, isKey, tags)
     }
 
+    suspend fun explainConcepts(messageContent: String): String {
+        val client = modelManager.getActiveClient()
+        val prompt = """
+            Analyze the following text/code snippet and explain it for a beginner software builder (a visual learner).
+            
+            Format your response clearly into 3 distinct sections:
+            
+            1. 💡 KEY CONCEPTS & TERMS
+            (Define 2-4 key technical terms or keywords mentioned in plain English with simple analogies).
+            
+            2. 🔄 RELATIONSHIPS & CAUSE-AND-EFFECT
+            (Explain how the components interact. E.g., "If you change X, it affects Y").
+            
+            3. 📊 VISUAL FLOW / DIAGRAM
+            (Use simple text/ASCII boxes or step-by-step arrows to show the flow of data or execution).
+            
+            Snippet to Explain:
+            $messageContent
+        """.trimIndent()
+
+        val response = StringBuilder()
+        client.generateResponse(prompt).collect { response.append(it) }
+        return response.toString()
+    }
+
     fun getAttachmentsForMessage(messageId: Long): Flow<List<Attachment>> = 
         attachmentDao.getAttachmentsForMessage(messageId)
 

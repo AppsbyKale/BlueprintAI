@@ -156,14 +156,6 @@ fun MainScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { 
-                            currentFolderId?.let { 
-                                artifactViewModel.generateArtifacts(it)
-                                showExportDialog = true
-                            }
-                        }) {
-                            Icon(Icons.Default.Build, contentDescription = "Artifacts")
-                        }
                         Box {
                             IconButton(onClick = { showSettingsMenu = true }) {
                                 Icon(Icons.Default.MoreVert, contentDescription = "Settings")
@@ -233,6 +225,7 @@ fun MainScreen(
                 val textToShare = StringBuilder()
                 if (selected.contains("Report")) textToShare.append("# Report\n${exportState.report}\n\n")
                 if (selected.contains("Blueprint")) textToShare.append("# Blueprint\n${exportState.blueprint}\n\n")
+                if (selected.contains("Concept Map")) textToShare.append("# Concept Map & Architecture\n${exportState.conceptMap}\n\n")
                 if (selected.contains("Prompt")) textToShare.append("# Prompt\n${exportState.prompt}\n\n")
                 if (selected.contains("Conversation")) textToShare.append("# Conversation\n${exportState.conversation}\n\n")
                 

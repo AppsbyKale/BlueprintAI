@@ -13,6 +13,7 @@ import javax.inject.Inject
 data class ArtifactExportState(
     val report: String = "",
     val blueprint: String = "",
+    val conceptMap: String = "",
     val prompt: String = "",
     val tasks: String = "",
     val conversation: String = "",
@@ -34,16 +35,17 @@ class ArtifactViewModel @Inject constructor(
             
             val report = artifactRepository.generateReport(folderId)
             val blueprint = artifactRepository.generateBlueprintUpdate(folderId)
+            val conceptMap = artifactRepository.generateConceptMap(folderId)
             val prompt = artifactRepository.generatePromptExport(folderId)
             
-            // Get messages for conversation and tasks (stub for tasks as it's a file in root usually, 
-            // but here we might want to generate a current view of tasks)
+            // Get messages for conversation and tasks
             val messages = chatRepository.getMessages(folderId).first()
             val conversation = messages.joinToString("\n\n") { "${it.role.uppercase()}: ${it.content}" }
             
             _exportState.value = ArtifactExportState(
                 report = report,
                 blueprint = blueprint,
+                conceptMap = conceptMap,
                 prompt = prompt,
                 conversation = conversation,
                 isGenerating = false

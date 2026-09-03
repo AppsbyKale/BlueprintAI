@@ -56,6 +56,12 @@ class ChatViewModel @Inject constructor(
     private val _currentStreamingResponse = MutableStateFlow("")
     val currentStreamingResponse: StateFlow<String> = _currentStreamingResponse.asStateFlow()
 
+    private val _conceptExplanation = MutableStateFlow<String?>(null)
+    val conceptExplanation: StateFlow<String?> = _conceptExplanation.asStateFlow()
+
+    private val _isExplainingConcepts = MutableStateFlow(false)
+    val isExplainingConcepts: StateFlow<Boolean> = _isExplainingConcepts.asStateFlow()
+
     val isListening = voiceManager.isListening
     val recognizedText = voiceManager.recognizedText
 
@@ -150,6 +156,21 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             repository.updateMessageMetadata(message.id, message.isKeyDecision, tags)
         }
+    }
+
+    fun explainConcepts(message: Message) {
+        viewModelScope.launch {
+            _isExplainingConcepts.value = true
+            _conceptExplanation.value = null
+            val explanation = repository.explainConcepts(message.content)
+            _conceptExplanation.value = explanation
+            _isExplainingConcepts.value = false
+        }
+    }
+
+    fun clearConceptExplanation() {
+        _conceptExplanation.value = null
+        _isExplainingConcepts.value = false
     }
 
     fun startListening() {

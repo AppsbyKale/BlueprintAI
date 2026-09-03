@@ -39,6 +39,8 @@ fun ChatScreen(
     val streamingResponse by viewModel.currentStreamingResponse.collectAsState()
     val isListening by viewModel.isListening.collectAsState()
     val recognizedText by viewModel.recognizedText.collectAsState()
+    val conceptExplanation by viewModel.conceptExplanation.collectAsState()
+    val isExplainingConcepts by viewModel.isExplainingConcepts.collectAsState()
     
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -129,7 +131,8 @@ fun ChatScreen(
                     MessageBubble(
                         message = message,
                         onToggleStar = { viewModel.toggleKeyDecision(message) },
-                        onUpdateTags = { viewModel.updateTags(message, it) }
+                        onUpdateTags = { viewModel.updateTags(message, it) },
+                        onExplainConcepts = { viewModel.explainConcepts(message) }
                     )
                 }
                 if (streamingResponse.isNotEmpty()) {
@@ -161,6 +164,14 @@ fun ChatScreen(
             },
             isListening = isListening,
             enabled = !isGenerating && inputText.isNotBlank()
+        )
+    }
+
+    if (conceptExplanation != null || isExplainingConcepts) {
+        ConceptExplanationDialog(
+            explanation = conceptExplanation,
+            isLoading = isExplainingConcepts,
+            onDismiss = { viewModel.clearConceptExplanation() }
         )
     }
 }
@@ -207,10 +218,12 @@ fun AttachmentNoticeBar(attachments: List<com.example.blueprintai.data.Attachmen
 fun MessageBubble(
     message: Message,
     onToggleStar: () -> Unit,
-    onUpdateTags: (String) -> Unit
+    onUpdateTags: (String) -> Unit,
+    onExplainConcepts: () -> Unit
 ) {
     val isUser = message.role == "user"
     var showTagDialog by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier.fillMaxWidth(),
@@ -224,7 +237,7 @@ fun MessageBubble(
                     .widthIn(max = 300.dp)
                     .pointerInput(Unit) {
                         detectTapGestures(
-                            onLongPress = { showTagDialog = true }
+                            onLongPress = { showMenu = true }
                         )
                     }
             ) {
@@ -253,6 +266,28 @@ fun MessageBubble(
                         }
                     }
                 }
+            }
+
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false }
+            ) {
+                if (!isUser) {
+                    DropdownMenuItem(
+                        text = { Text("Explain Concepts & Relationships 💡") },
+                        onClick = {
+                            showMenu = false
+                            onExplainConcepts()
+                        }
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("Update Tags") },
+                    onClick = {
+                        showMenu = false
+                        showTagDialog = true
+                    }
+                )
             }
             
             Row(
@@ -310,6 +345,44 @@ fun StreamingBubble(content: String) {
             )
         }
     }
+}
+
+@Composable
+fun ConceptExplanationDialog(
+    explanation: String?,
+    isLoading: Boolean,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Concept Breakdown & Relationships 💡") },
+        text = {
+            if (isLoading) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Analyzing concepts & visual flows...")
+                }
+            } else {
+                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                    item {
+                        Text(
+                            text = explanation ?: "No explanation available.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
 
 @Composable

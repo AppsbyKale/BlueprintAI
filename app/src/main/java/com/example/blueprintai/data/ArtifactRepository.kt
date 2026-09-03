@@ -87,6 +87,28 @@ class ArtifactRepository @Inject constructor(
         return runGeneration(prompt)
     }
 
+    suspend fun generateConceptMap(folderId: Long): String {
+        val folder = folderDao.getFolderById(folderId) ?: return "Folder not found"
+        val messages = messageDao.getMessagesByFolder(folderId).first()
+        
+        val contextText = messages.joinToString("\n") { "${it.role.uppercase()}: ${it.content}" }
+
+        val prompt = """
+            Analyze the project "${folder.name}" and create a beginner-friendly "Concept Map & Architecture Guide" tailored for a visual learner.
+            
+            Include:
+            1. VISUAL FLOWCHART / ARCHITECTURE DIAGRAM (Use ASCII art/boxes to show UI -> Logic/ViewModel -> Database/API data flow).
+            2. COMPONENT BREAKDOWN (Explain each layer in plain English with everyday analogies).
+            3. KEY RELATIONSHIPS & CAUSE-AND-EFFECT ("If you change X, it affects Y").
+            4. GLOSSARY OF TECHNICAL TERMS USED IN THIS PROJECT (5-8 terms translated into plain language).
+            
+            Conversation Context:
+            $contextText
+        """.trimIndent()
+
+        return runGeneration(prompt)
+    }
+
     private suspend fun runGeneration(prompt: String): String {
         val client = modelManager.getActiveClient()
         val response = StringBuilder()

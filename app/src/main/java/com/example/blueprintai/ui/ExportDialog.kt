@@ -16,7 +16,7 @@ fun ExportDialog(
     var selectedArtifacts by remember { mutableStateOf(setOf<String>()) }
     var selectedFormat by remember { mutableStateOf("md") }
 
-    val options = listOf("Report", "Blueprint", "Tasks", "Prompt", "Conversation", "Document List")
+    val options = listOf("Report", "Blueprint", "Concept Map", "Prompt", "Conversation")
 
     AlertDialog(
         onDismissRequest = onDismiss,
