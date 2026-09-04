@@ -9,6 +9,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
@@ -19,6 +20,13 @@ object NetworkModule {
     @Singleton
     fun provideHttpClient(): HttpClient {
         return HttpClient(OkHttp) {
+            engine {
+                config {
+                    connectTimeout(30, TimeUnit.SECONDS)
+                    readTimeout(120, TimeUnit.SECONDS)
+                    writeTimeout(30, TimeUnit.SECONDS)
+                }
+            }
             install(ContentNegotiation) {
                 json(Json {
                     ignoreUnknownKeys = true

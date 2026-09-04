@@ -84,8 +84,11 @@ class RemoteModelClient(
     override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
         return@withContext try {
             val cleanUrl = baseUrl.trim().trimEnd('/')
-            val response = httpClient.get("$cleanUrl/models")
-            response.status.value in 200..299
+            val modelsResp = httpClient.get("$cleanUrl/models")
+            if (modelsResp.status.value in 200..299) return@withContext true
+
+            val rootResp = httpClient.get(cleanUrl)
+            rootResp.status.value in 200..399
         } catch (e: Exception) {
             false
         }
