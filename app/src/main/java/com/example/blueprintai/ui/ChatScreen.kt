@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
@@ -23,8 +24,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.blueprintai.data.Message
@@ -227,6 +230,7 @@ fun MessageBubble(
     val isUser = message.role == "user"
     var showTagDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
 
     Box(
         modifier = Modifier.fillMaxWidth(),
@@ -244,27 +248,29 @@ fun MessageBubble(
                         )
                     }
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    val isError = message.content.startsWith("Error:")
-                    Text(
-                        text = message.content,
-                        color = if (isError) MaterialTheme.colorScheme.error else Color.White,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    
-                    if (message.tags.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            message.tags.split(",").forEach { tag ->
-                                SuggestionChip(
-                                    onClick = { },
-                                    label = { Text(tag.trim(), style = MaterialTheme.typography.labelSmall) },
-                                    colors = SuggestionChipDefaults.suggestionChipColors(
-                                        containerColor = Color(0xFF333333),
-                                        labelColor = Color.LightGray
-                                    ),
-                                    border = null
-                                )
+                SelectionContainer {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        val isError = message.content.startsWith("Error:")
+                        Text(
+                            text = message.content,
+                            color = if (isError) MaterialTheme.colorScheme.error else Color.White,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        
+                        if (message.tags.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                message.tags.split(",").forEach { tag ->
+                                    SuggestionChip(
+                                        onClick = { },
+                                        label = { Text(tag.trim(), style = MaterialTheme.typography.labelSmall) },
+                                        colors = SuggestionChipDefaults.suggestionChipColors(
+                                            containerColor = Color(0xFF333333),
+                                            labelColor = Color.LightGray
+                                        ),
+                                        border = null
+                                    )
+                                }
                             }
                         }
                     }
@@ -275,6 +281,13 @@ fun MessageBubble(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false }
             ) {
+                DropdownMenuItem(
+                    text = { Text("Copy Text 📋") },
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(message.content))
+                        showMenu = false
+                    }
+                )
                 if (!isUser) {
                     DropdownMenuItem(
                         text = { Text("Explain Concepts & Relationships 💡") },
@@ -340,12 +353,14 @@ fun StreamingBubble(content: String) {
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.widthIn(max = 300.dp)
         ) {
-            Text(
-                text = content,
-                color = Color.White,
-                modifier = Modifier.padding(12.dp),
-                style = MaterialTheme.typography.bodyLarge
-            )
+            SelectionContainer {
+                Text(
+                    text = content,
+                    color = Color.White,
+                    modifier = Modifier.padding(12.dp),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
         }
     }
 }
@@ -370,12 +385,14 @@ fun ConceptExplanationDialog(
                     Text("Analyzing concepts & visual flows...")
                 }
             } else {
-                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                    item {
-                        Text(
-                            text = explanation ?: "No explanation available.",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                SelectionContainer {
+                    LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                        item {
+                            Text(
+                                text = explanation ?: "No explanation available.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     }
                 }
             }
