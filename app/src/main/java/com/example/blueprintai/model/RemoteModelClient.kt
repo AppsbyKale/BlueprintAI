@@ -29,17 +29,24 @@ data class ChatMessage(
 
 @Serializable
 data class ChatChunk(
-    val choices: List<ChoiceChunk>
+    val choices: List<ChoiceChunk>? = null
 )
 
 @Serializable
 data class ChoiceChunk(
-    val delta: DeltaChunk
-)
+    val delta: DeltaChunk? = null,
+    val message: DeltaChunk? = null,
+    val text: String? = null
+) {
+    fun extractContent(): String? {
+        return delta?.content ?: delta?.text ?: message?.content ?: message?.text ?: text
+    }
+}
 
 @Serializable
 data class DeltaChunk(
-    val content: String? = null
+    val content: String? = null,
+    val text: String? = null
 )
 
 class RemoteModelClient(
@@ -62,23 +69,52 @@ class RemoteModelClient(
             }
 
             val channel: ByteReadChannel = response.bodyAsChannel()
+            var emittedAnyText = false
+            val rawBuffer = StringBuilder()
+
             while (!channel.isClosedForRead) {
-                val line = channel.readLine() ?: break
-                if (line.startsWith("data: ")) {
-                    val data = line.substring(6)
+                val line = channel.readLine()?.trim() ?: break
+                if (line.isEmpty()) continue
+
+                rawBuffer.append(line).append("\n")
+
+                if (line.startsWith("data:")) {
+                    val data = line.removePrefix("data:").trim()
                     if (data == "[DONE]") break
                     try {
                         val chunk = json.decodeFromString<ChatChunk>(data)
-                        chunk.choices.firstOrNull()?.delta?.content?.let {
-                            emit(it)
+                        val text = chunk.choices?.firstOrNull()?.extractContent()
+                        if (!text.isNullOrEmpty()) {
+                            emit(text)
+                            emittedAnyText = true
                         }
                     } catch (e: Exception) {
-                        // Ignore parse errors for specific chunks
+                        // Ignore intermediate JSON parse errors for SSE lines
                     }
                 }
             }
+
+            if (!emittedAnyText) {
+                val fullRaw = rawBuffer.toString().trim()
+                if (fullRaw.isNotEmpty()) {
+                    try {
+                        val fullChunk = json.decodeFromString<ChatChunk>(fullRaw)
+                        val text = fullChunk.choices?.firstOrNull()?.extractContent()
+                        if (!text.isNullOrEmpty()) {
+                            emit(text)
+                            emittedAnyText = true
+                        }
+                    } catch (e: Exception) {
+                        // Ignore
+                    }
+                }
+            }
+
+            if (!emittedAnyText) {
+                emit("Error: Received empty response from remote server ($cleanUrl). Please check that a model is currently loaded in LM Studio or Ollama.")
+            }
         } catch (e: Exception) {
-            emit("Error: ${e.localizedMessage}")
+            emit("Error connecting to remote model: ${e.localizedMessage ?: "Unknown error"}")
         }
     }.flowOn(Dispatchers.IO)
 
