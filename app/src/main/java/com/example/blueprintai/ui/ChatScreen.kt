@@ -37,6 +37,7 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
+    val currentFolderId by viewModel.currentFolderId.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val attachments by viewModel.attachments.collectAsState()
     val isGenerating by viewModel.isGenerating.collectAsState()
@@ -89,9 +90,22 @@ fun ChatScreen(
         }
     )
 
+    val lastItemIndex = remember(messages.size, streamingResponse) {
+        val totalCount = messages.size + if (streamingResponse.isNotEmpty()) 1 else 0
+        (totalCount - 1).coerceAtLeast(0)
+    }
+
+    // Scroll to bottom when opening the app or switching folders
+    LaunchedEffect(currentFolderId, messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.scrollToItem(lastItemIndex)
+        }
+    }
+
+    // Smooth scroll to bottom when new messages or streaming tokens arrive
     LaunchedEffect(messages.size, streamingResponse) {
         if (isAtBottom && (messages.isNotEmpty() || streamingResponse.isNotEmpty())) {
-            listState.animateScrollToItem((messages.size + if (streamingResponse.isNotEmpty()) 1 else 0).coerceAtLeast(0))
+            listState.animateScrollToItem(lastItemIndex)
         }
     }
 
