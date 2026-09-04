@@ -118,9 +118,7 @@ fun AiModelsDialog(
     settings: AppSettings,
     downloadProgress: DownloadProgress = DownloadProgress(),
     onDismiss: () -> Unit,
-    onUpdateLocalPath: (String) -> Unit,
-    onUpdateDesktopUrl: (String) -> Unit,
-    onUpdateGeminiKey: (String) -> Unit,
+    onSaveSettings: (localPath: String, desktopUrl: String, geminiKey: String) -> Unit,
     onRequestPermission: () -> Unit,
     onStartDownload: (String) -> Unit
 ) {
@@ -131,7 +129,7 @@ fun AiModelsDialog(
     LaunchedEffect(downloadProgress.isCompleted) {
         if (downloadProgress.isCompleted) {
             localPath = "/storage/emulated/0/Download/AI_Models/gemma-4-E2B-it.litertlm"
-            onUpdateLocalPath(localPath)
+            onSaveSettings(localPath, desktopUrl, geminiKey)
         }
     }
 
@@ -234,7 +232,6 @@ fun AiModelsDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                onUpdateLocalPath(localPath)
                 var cleaned = desktopUrl.trim()
                 if (cleaned.isNotBlank()) {
                     if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
@@ -245,8 +242,7 @@ fun AiModelsDialog(
                         cleaned = "$cleaned/v1"
                     }
                 }
-                onUpdateDesktopUrl(cleaned)
-                onUpdateGeminiKey(geminiKey)
+                onSaveSettings(localPath, cleaned, geminiKey)
                 onDismiss()
             }) {
                 Text("Save")

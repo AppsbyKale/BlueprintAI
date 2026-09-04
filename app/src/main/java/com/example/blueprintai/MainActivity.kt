@@ -275,9 +275,9 @@ fun MainScreen(
             settings = settings,
             downloadProgress = downloadProgress,
             onDismiss = { showAiModelsDialog = false },
-            onUpdateLocalPath = { settingsViewModel.updateLocalPath(it) },
-            onUpdateDesktopUrl = { settingsViewModel.updateDesktopUrl(it) },
-            onUpdateGeminiKey = { settingsViewModel.updateGeminiApiKey(it) },
+            onSaveSettings = { localPath, desktopUrl, geminiKey ->
+                settingsViewModel.saveAiModelSettings(localPath, desktopUrl, geminiKey)
+            },
             onRequestPermission = {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
                     data = Uri.parse("package:${context.packageName}")

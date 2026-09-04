@@ -40,6 +40,19 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun saveAiModelSettings(localPath: String, desktopUrl: String, geminiKey: String) {
+        viewModelScope.launch {
+            val current = settings.value
+            settingsDao.saveSettings(
+                current.copy(
+                    localModelPath = localPath,
+                    desktopUrl = desktopUrl,
+                    geminiApiKey = geminiKey
+                )
+            )
+        }
+    }
+
     fun updateLocalPath(path: String) {
         viewModelScope.launch {
             val current = settings.value
