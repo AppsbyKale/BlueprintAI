@@ -1,10 +1,10 @@
 package com.example.blueprintai.model
 
 import io.ktor.client.*
-import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -53,6 +53,7 @@ class RemoteModelClient(
         try {
             val cleanUrl = baseUrl.trim().trimEnd('/')
             val response = httpClient.post("$cleanUrl/chat/completions") {
+                contentType(ContentType.Application.Json)
                 setBody(
                     ChatRequest(
                         messages = listOf(ChatMessage(role = "user", content = prompt))
