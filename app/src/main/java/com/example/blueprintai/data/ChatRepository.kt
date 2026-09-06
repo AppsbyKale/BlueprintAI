@@ -18,8 +18,8 @@ class ChatRepository @Inject constructor(
     private val modelManager: ModelManager,
     private val toolInterceptor: ToolInterceptor
 ) {
-    // Cache for older conversation summaries per folder: folderId -> Pair(olderMessageCount, summaryText)
-    private val folderSummaries = ConcurrentHashMap<Long, Pair<Int, String>>()
+    // Cache for older conversation summaries per folder: folderId -> Pair(Pair(olderMsgCount, starredCount), summaryText)
+    private val folderSummaries = ConcurrentHashMap<Long, Pair<Pair<Int, Int>, String>>()
 
     fun getMessages(folderId: Long): Flow<List<Message>> = messageDao.getMessagesByFolder(folderId)
 
@@ -36,7 +36,7 @@ class ChatRepository @Inject constructor(
         // Load all stored messages for this folder
         val allMessages = messageDao.getMessagesByFolder(folderId).first()
 
-        // Build efficient chat payload using sliding window (last 5 messages verbatim + rolling summary for older history)
+        // Build efficient chat payload using 20-message sliding window + detailed project & starred summary for older history
         var currentHistory = buildCompressedChatHistory(folderId, allMessages)
 
         // Get active model client (Local, Desktop, or Gemini)
@@ -69,44 +69,62 @@ class ChatRepository @Inject constructor(
     }
 
     private suspend fun buildCompressedChatHistory(folderId: Long, allMessages: List<Message>): List<ChatMessage> {
-        val windowSize = 5
+        val windowSize = 20
         if (allMessages.size <= windowSize) {
-            // Under 5 messages: send all verbatim, no summary needed
+            // Under 20 messages: send all verbatim
             return allMessages.map { ChatMessage(role = it.role, content = it.content) }
         }
 
-        // More than 5 messages: split into older history and last 5 messages
+        // More than 20 messages: split into older history and last 20 messages
         val olderMessages = allMessages.dropLast(windowSize)
         val recentMessages = allMessages.takeLast(windowSize)
+        val starredMessages = allMessages.filter { it.isKeyDecision }
 
+        val cacheKey = Pair(olderMessages.size, starredMessages.size)
         val cachedSummary = folderSummaries[folderId]
-        val summaryText = if (cachedSummary != null && cachedSummary.first == olderMessages.size) {
+
+        val summaryText = if (cachedSummary != null && cachedSummary.first == cacheKey) {
             cachedSummary.second
         } else {
-            val olderContentText = olderMessages.joinToString("\n") { "${it.role.uppercase()}: ${it.content}" }
-            val newSummary = generateQuickSummary(olderContentText)
-            folderSummaries[folderId] = Pair(olderMessages.size, newSummary)
+            val newSummary = generateDetailedProjectSummary(olderMessages, starredMessages)
+            folderSummaries[folderId] = Pair(cacheKey, newSummary)
             newSummary
         }
 
         val systemSummaryMessage = ChatMessage(
             role = "system",
-            content = "Summary of prior conversation history:\n$summaryText"
+            content = "APP BRAINSTORMING CONTEXT & KEY DECISIONS:\n$summaryText"
         )
 
         return listOf(systemSummaryMessage) + recentMessages.map { ChatMessage(role = it.role, content = it.content) }
     }
 
-    private suspend fun generateQuickSummary(text: String): String {
+    private suspend fun generateDetailedProjectSummary(olderMessages: List<Message>, starredMessages: List<Message>): String {
         return try {
             val client = modelManager.getActiveClient()
-            val prompt = "Summarize the key facts, user goals, and technical decisions in this prior conversation in 2-3 concise bullet points:\n$text"
+            val olderContentText = olderMessages.joinToString("\n") { "${it.role.uppercase()}: ${it.content}" }
+            val starredText = if (starredMessages.isNotEmpty()) {
+                starredMessages.joinToString("\n") { "- [STARRED] (${it.role.uppercase()}): ${it.content}" }
+            } else "None marked yet."
+
+            val prompt = """
+                Analyze the following app brainstorming conversation history and output a structured summary with 3 sections:
+
+                1. APP CONCEPT & VISION (2 sentences describing the app being brainstormed)
+                2. KEY FEATURES & REQUIREMENTS (Bullet points of key features agreed upon)
+                3. KEY DECISIONS & STARRED HIGHLIGHTS (Summarize the important decisions from these starred entries):
+                $starredText
+
+                Prior Conversation Context:
+                $olderContentText
+            """.trimIndent()
+
             val response = StringBuilder()
             client.generateResponse(prompt).collect { response.append(it) }
             response.toString().trim().takeIf { it.isNotEmpty() }
-                ?: "Prior conversation covered ${text.length} characters of discussion."
+                ?: "App Brainstorming Session in progress."
         } catch (e: Exception) {
-            "Prior conversation covered ${text.length} characters of discussion."
+            "App Brainstorming Session in progress."
         }
     }
 
