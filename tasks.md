@@ -55,6 +55,20 @@
 
 ## Phase 9 – Visual Learning Features & UX Consolidation
 - [x] Add "Concept Map & Architecture Guide" artifact option to folder export (ASCII flowcharts, layer breakdowns, plain-English glossary)
-- [x] Add long-press "Explain Concepts & Relationships 💡" dialog on AI messages
+- [x] Add long-press "Explain Concepts & Relationships" dialog on AI messages
 - [x] Consolidate export UX by removing redundant hammer icon from TopAppBar
 - [x] Initialize Git repository and add `.idea/vcs.xml` for IDE integration
+
+## Phase 10 – Model Routing, Context Memory, Threading & Debugging
+- [x] Fix empty folder startup issue (auto-create "General" folder on launch so messages are never dropped)
+- [x] Add Gemini API fallback client (`GeminiModelClient`) with automatic routing in Auto mode
+- [x] Update LiteRT-LM client to use native C++ `com.google.ai.edge.litertlm.Engine` with automatic GPU -> CPU fallback
+- [x] Offload model initialization and token generation to `Dispatchers.Default` (fixes UI freeze & keyboard dismissal)
+- [x] Add direct Hugging Face model downloader for `gemma-4-E2B-it.litertlm` with live progress tracking
+- [x] Fix Ktor `Content-Type: application/json` missing header on remote model POST requests
+- [x] Fix atomic settings save race condition preventing remote desktop IP from persisting
+- [x] Enable cleartext HTTP traffic (`usesCleartextTraffic="true"`) and 120s network timeouts for remote port-forwarded LLM servers (LM Studio / Ollama / LM Link)
+- [x] Add multi-turn conversation memory with 20-message verbatim sliding window and cached App Brainstorming & Starred Highlights summary for older history
+- [x] Add visual Context Window Usage Bar at the top of the chat screen
+- [x] Add long-press "Debug: Inspect Context & Tokens" dialog showing exact model payload and token counts
+- [x] Enable native text selection, highlighting, and Cut/Copy/Paste toolbar across all prompts, responses, and dialogs
