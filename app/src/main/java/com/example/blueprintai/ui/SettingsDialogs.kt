@@ -234,13 +234,17 @@ fun AiModelsDialog(
             TextButton(onClick = {
                 var cleaned = desktopUrl.trim()
                 if (cleaned.isNotBlank()) {
-                    if (!cleaned.startsWith("http://") && !cleaned.startsWith("https://")) {
+                    if (!cleaned.startsWith("http://", ignoreCase = true) && !cleaned.startsWith("https://", ignoreCase = true)) {
                         cleaned = "http://$cleaned"
                     }
-                    cleaned = cleaned.trimEnd('/')
-                    if (!cleaned.endsWith("/v1")) {
-                        cleaned = "$cleaned/v1"
+                    while (cleaned.endsWith("/", ignoreCase = true) || cleaned.endsWith("/v1", ignoreCase = true)) {
+                        if (cleaned.endsWith("/", ignoreCase = true)) {
+                            cleaned = cleaned.trimEnd('/')
+                        } else if (cleaned.endsWith("/v1", ignoreCase = true)) {
+                            cleaned = cleaned.substring(0, cleaned.length - 3)
+                        }
                     }
+                    cleaned = "$cleaned/v1"
                 }
                 onSaveSettings(localPath, cleaned, geminiKey)
                 onDismiss()

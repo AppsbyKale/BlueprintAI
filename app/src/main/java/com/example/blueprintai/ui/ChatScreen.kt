@@ -296,7 +296,7 @@ fun MessageBubble(
                 onDismissRequest = { showMenu = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text("Copy Text 📋") },
+                    text = { Text("Copy Text") },
                     onClick = {
                         clipboardManager.setText(AnnotatedString(message.content))
                         showMenu = false
@@ -304,7 +304,7 @@ fun MessageBubble(
                 )
                 if (!isUser) {
                     DropdownMenuItem(
-                        text = { Text("Explain Concepts & Relationships 💡") },
+                        text = { Text("Explain Concepts & Relationships") },
                         onClick = {
                             showMenu = false
                             onExplainConcepts()

@@ -1,10 +1,11 @@
 package com.example.blueprintai.model
 
 import io.ktor.client.*
-import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.http.*
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import io.ktor.utils.io.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
@@ -14,7 +15,7 @@ import kotlinx.serialization.json.Json
 data class GeminiPart(val text: String)
 
 @Serializable
-data class GeminiContent(val parts: List<GeminiPart>)
+data class GeminiContent(val role: String? = null, val parts: List<GeminiPart>)
 
 @Serializable
 data class GeminiRequest(val contents: List<GeminiContent>)
@@ -38,7 +39,7 @@ class GeminiModelClient(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    override fun generateResponse(prompt: String): Flow<String> = flow {
+    override fun generateChatResponse(messages: List<ChatMessage>): Flow<String> = flow {
         if (apiKey.isBlank()) {
             emit("Error: Gemini API key is missing. Please add your key in Settings (3-dot menu -> AI Models).")
             return@flow
@@ -46,18 +47,20 @@ class GeminiModelClient(
 
         try {
             val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey"
-            val requestBody = GeminiRequest(
-                contents = listOf(
-                    GeminiContent(parts = listOf(GeminiPart(text = prompt)))
+            val contents = messages.map { msg ->
+                GeminiContent(
+                    role = if (msg.role == "assistant") "model" else "user",
+                    parts = listOf(GeminiPart(text = msg.content))
                 )
-            )
+            }
+            val requestBody = GeminiRequest(contents = contents)
 
             val response: HttpResponse = httpClient.post(url) {
                 contentType(ContentType.Application.Json)
                 setBody(requestBody)
             }
 
-            if (response.status.isSuccess()) {
+            if (response.status.value in 200..299) {
                 val responseText = response.bodyAsText()
                 val geminiResp = json.decodeFromString<GeminiResponse>(responseText)
                 val reply = geminiResp.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text

@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.flow
 class FallbackModelClient(
     private val message: String
 ) : ModelClient {
-    override fun generateResponse(prompt: String): Flow<String> = flow {
+    override fun generateChatResponse(messages: List<ChatMessage>): Flow<String> = flow {
         emit(message)
     }
 

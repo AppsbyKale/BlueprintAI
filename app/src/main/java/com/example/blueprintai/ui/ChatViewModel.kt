@@ -187,9 +187,14 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             _isExplainingConcepts.value = true
             _conceptExplanation.value = null
-            val explanation = repository.explainConcepts(message.content)
-            _conceptExplanation.value = explanation
-            _isExplainingConcepts.value = false
+            try {
+                val explanation = repository.explainConcepts(message.content)
+                _conceptExplanation.value = explanation
+            } catch (e: Throwable) {
+                _conceptExplanation.value = "Unable to generate explanation: ${e.localizedMessage ?: "Please check AI Model settings."}"
+            } finally {
+                _isExplainingConcepts.value = false
+            }
         }
     }
 

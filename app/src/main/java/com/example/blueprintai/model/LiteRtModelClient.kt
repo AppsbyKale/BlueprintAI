@@ -52,7 +52,7 @@ class LiteRtModelClient(
         }
     }
 
-    override fun generateResponse(prompt: String): Flow<String> = callbackFlow {
+    override fun generateChatResponse(messages: List<ChatMessage>): Flow<String> = callbackFlow {
         val currentEngine = try {
             getOrInitEngine()
         } catch (e: Throwable) {
@@ -68,14 +68,21 @@ class LiteRtModelClient(
 
         var conversation: Conversation? = null
         try {
+            // Fast sampler config optimized for mobile hardware
             val conversationConfig = ConversationConfig(
                 systemInstruction = Contents.of("You are a helpful AI assistant."),
-                samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = 0.7),
-                maxOutputToken = 1024
+                samplerConfig = SamplerConfig(topK = 20, topP = 0.8, temperature = 0.3),
+                maxOutputToken = 512
             )
             conversation = currentEngine.createConversation(conversationConfig)
 
-            conversation.sendMessageAsync(Contents.of(prompt))
+            // Format multi-turn chat history into prompt for local LiteRT-LM model
+            val formattedPrompt = messages.takeLast(10).joinToString("\n") { msg ->
+                val roleName = if (msg.role == "user") "User" else "Assistant"
+                "$roleName: ${msg.content}"
+            } + "\nAssistant:"
+
+            conversation.sendMessageAsync(Contents.of(formattedPrompt))
                 .map { message ->
                     message.contents.contents
                         .asSequence()

@@ -1,8 +1,10 @@
 package com.example.blueprintai.data
 
+import com.example.blueprintai.model.ChatMessage
 import com.example.blueprintai.model.ModelManager
 import com.example.blueprintai.model.ToolInterceptor
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,16 +29,19 @@ class ChatRepository @Inject constructor(
         val userMessage = Message(folderId = folderId, content = content, role = "user")
         messageDao.insertMessage(userMessage)
 
-        // Get model client
+        // Load full conversation history for this folder (take last 20 to keep context window efficient and fast)
+        val allMessages = messageDao.getMessagesByFolder(folderId).first()
+        var currentHistory = allMessages.takeLast(20).map { ChatMessage(role = it.role, content = it.content) }
+
+        // Get active model client (Local, Desktop, or Gemini)
         val client = modelManager.getActiveClient()
 
-        var currentPrompt = content
         var loop = true
         var interactionCount = 0
 
-        while (loop && interactionCount < 5) { // Limit loops
+        while (loop && interactionCount < 5) {
             val fullResponse = StringBuilder()
-            client.generateResponse(currentPrompt).collect { chunk ->
+            client.generateChatResponse(currentHistory).collect { chunk ->
                 fullResponse.append(chunk)
                 emit(chunk)
             }
@@ -46,7 +51,7 @@ class ChatRepository @Inject constructor(
                 // Potential tool call
                 val toolResult = toolInterceptor.intercept(responseText)
                 emit("\n[Tool Result: $toolResult]\n")
-                currentPrompt = "Tool result: $toolResult"
+                currentHistory = currentHistory + ChatMessage(role = "assistant", content = responseText) + ChatMessage(role = "user", content = "Tool result: $toolResult")
                 interactionCount++
             } else {
                 // Normal response
@@ -62,28 +67,32 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun explainConcepts(messageContent: String): String {
-        val client = modelManager.getActiveClient()
-        val prompt = """
-            Analyze the following text/code snippet and explain it for a beginner software builder (a visual learner).
-            
-            Format your response clearly into 3 distinct sections:
-            
-            1. 💡 KEY CONCEPTS & TERMS
-            (Define 2-4 key technical terms or keywords mentioned in plain English with simple analogies).
-            
-            2. 🔄 RELATIONSHIPS & CAUSE-AND-EFFECT
-            (Explain how the components interact. E.g., "If you change X, it affects Y").
-            
-            3. 📊 VISUAL FLOW / DIAGRAM
-            (Use simple text/ASCII boxes or step-by-step arrows to show the flow of data or execution).
-            
-            Snippet to Explain:
-            $messageContent
-        """.trimIndent()
+        return try {
+            val client = modelManager.getActiveClient()
+            val prompt = """
+                Analyze the following text/code snippet and explain it for a beginner software builder (a visual learner).
+                
+                Format your response clearly into 3 distinct sections:
+                
+                1. KEY CONCEPTS & TERMS
+                (Define 2-4 key technical terms or keywords mentioned in plain English with simple analogies).
+                
+                2. RELATIONSHIPS & CAUSE-AND-EFFECT
+                (Explain how the components interact. E.g., "If you change X, it affects Y").
+                
+                3. VISUAL FLOW / DIAGRAM
+                (Use simple text/ASCII boxes or step-by-step arrows to show the flow of data or execution).
+                
+                Snippet to Explain:
+                $messageContent
+            """.trimIndent()
 
-        val response = StringBuilder()
-        client.generateResponse(prompt).collect { response.append(it) }
-        return response.toString()
+            val response = StringBuilder()
+            client.generateResponse(prompt).collect { response.append(it) }
+            response.toString()
+        } catch (e: Throwable) {
+            "Unable to generate concept explanation: ${e.localizedMessage ?: "Unknown error"}"
+        }
     }
 
     fun getAttachmentsForMessage(messageId: Long): Flow<List<Attachment>> = 

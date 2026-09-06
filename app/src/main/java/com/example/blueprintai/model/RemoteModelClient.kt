@@ -56,14 +56,14 @@ class RemoteModelClient(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    override fun generateResponse(prompt: String): Flow<String> = flow {
+    override fun generateChatResponse(messages: List<ChatMessage>): Flow<String> = flow {
         try {
             val cleanUrl = baseUrl.trim().trimEnd('/')
             val response = httpClient.post("$cleanUrl/chat/completions") {
                 contentType(ContentType.Application.Json)
                 setBody(
                     ChatRequest(
-                        messages = listOf(ChatMessage(role = "user", content = prompt))
+                        messages = messages
                     )
                 )
             }
