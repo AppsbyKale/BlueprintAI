@@ -6,6 +6,7 @@ import com.example.blueprintai.model.ToolInterceptor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,6 +18,9 @@ class ChatRepository @Inject constructor(
     private val modelManager: ModelManager,
     private val toolInterceptor: ToolInterceptor
 ) {
+    // Cache for older conversation summaries per folder: folderId -> Pair(olderMessageCount, summaryText)
+    private val folderSummaries = ConcurrentHashMap<Long, Pair<Int, String>>()
+
     fun getMessages(folderId: Long): Flow<List<Message>> = messageDao.getMessagesByFolder(folderId)
 
     fun searchMessages(query: String): Flow<List<Message>> = messageDao.searchMessages(query)
@@ -29,9 +33,11 @@ class ChatRepository @Inject constructor(
         val userMessage = Message(folderId = folderId, content = content, role = "user")
         messageDao.insertMessage(userMessage)
 
-        // Load full conversation history for this folder (take last 20 to keep context window efficient and fast)
+        // Load all stored messages for this folder
         val allMessages = messageDao.getMessagesByFolder(folderId).first()
-        var currentHistory = allMessages.takeLast(20).map { ChatMessage(role = it.role, content = it.content) }
+
+        // Build efficient chat payload using sliding window (last 5 messages verbatim + rolling summary for older history)
+        var currentHistory = buildCompressedChatHistory(folderId, allMessages)
 
         // Get active model client (Local, Desktop, or Gemini)
         val client = modelManager.getActiveClient()
@@ -59,6 +65,48 @@ class ChatRepository @Inject constructor(
                 messageDao.insertMessage(aiMessage)
                 loop = false
             }
+        }
+    }
+
+    private suspend fun buildCompressedChatHistory(folderId: Long, allMessages: List<Message>): List<ChatMessage> {
+        val windowSize = 5
+        if (allMessages.size <= windowSize) {
+            // Under 5 messages: send all verbatim, no summary needed
+            return allMessages.map { ChatMessage(role = it.role, content = it.content) }
+        }
+
+        // More than 5 messages: split into older history and last 5 messages
+        val olderMessages = allMessages.dropLast(windowSize)
+        val recentMessages = allMessages.takeLast(windowSize)
+
+        val cachedSummary = folderSummaries[folderId]
+        val summaryText = if (cachedSummary != null && cachedSummary.first == olderMessages.size) {
+            cachedSummary.second
+        } else {
+            val olderContentText = olderMessages.joinToString("\n") { "${it.role.uppercase()}: ${it.content}" }
+            val newSummary = generateQuickSummary(olderContentText)
+            folderSummaries[folderId] = Pair(olderMessages.size, newSummary)
+            newSummary
+        }
+
+        val systemSummaryMessage = ChatMessage(
+            role = "system",
+            content = "Summary of prior conversation history:\n$summaryText"
+        )
+
+        return listOf(systemSummaryMessage) + recentMessages.map { ChatMessage(role = it.role, content = it.content) }
+    }
+
+    private suspend fun generateQuickSummary(text: String): String {
+        return try {
+            val client = modelManager.getActiveClient()
+            val prompt = "Summarize the key facts, user goals, and technical decisions in this prior conversation in 2-3 concise bullet points:\n$text"
+            val response = StringBuilder()
+            client.generateResponse(prompt).collect { response.append(it) }
+            response.toString().trim().takeIf { it.isNotEmpty() }
+                ?: "Prior conversation covered ${text.length} characters of discussion."
+        } catch (e: Exception) {
+            "Prior conversation covered ${text.length} characters of discussion."
         }
     }
 
