@@ -10,5 +10,6 @@ data class Settings(
     val localModelPath: String = "/storage/emulated/0/Download/AI_Models/gemma-4-E2B-it.litertlm",
     val desktopUrl: String = "http://192.168.1.10:1234/v1",
     val isTtsEnabled: Boolean = false,
-    val geminiApiKey: String = ""
+    val geminiApiKey: String = "",
+    val isRemoteEnabled: Boolean = true // Toggle to suspend/enable remote AI requests
 )

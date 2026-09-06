@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -118,18 +119,19 @@ fun AiModelsDialog(
     settings: AppSettings,
     downloadProgress: DownloadProgress = DownloadProgress(),
     onDismiss: () -> Unit,
-    onSaveSettings: (localPath: String, desktopUrl: String, geminiKey: String) -> Unit,
+    onSaveSettings: (localPath: String, desktopUrl: String, geminiKey: String, isRemoteEnabled: Boolean) -> Unit,
     onRequestPermission: () -> Unit,
     onStartDownload: (String) -> Unit
 ) {
     var localPath by remember(settings.localModelPath) { mutableStateOf(settings.localModelPath) }
     var desktopUrl by remember(settings.desktopUrl) { mutableStateOf(settings.desktopUrl) }
     var geminiKey by remember(settings.geminiApiKey) { mutableStateOf(settings.geminiApiKey) }
+    var isRemoteEnabled by remember(settings.isRemoteEnabled) { mutableStateOf(settings.isRemoteEnabled) }
 
     LaunchedEffect(downloadProgress.isCompleted) {
         if (downloadProgress.isCompleted) {
             localPath = "/storage/emulated/0/Download/AI_Models/gemma-4-E2B-it.litertlm"
-            onSaveSettings(localPath, desktopUrl, geminiKey)
+            onSaveSettings(localPath, desktopUrl, geminiKey, isRemoteEnabled)
         }
     }
 
@@ -207,7 +209,24 @@ fun AiModelsDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Desktop OpenAI-compatible", style = MaterialTheme.typography.titleSmall)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Desktop OpenAI-compatible", style = MaterialTheme.typography.titleSmall)
+                    Switch(
+                        checked = isRemoteEnabled,
+                        onCheckedChange = { isRemoteEnabled = it }
+                    )
+                }
+                if (!isRemoteEnabled) {
+                    Text(
+                        "⏸️ Remote AI connection is currently suspended.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
                 OutlinedTextField(
                     value = desktopUrl,
                     onValueChange = { desktopUrl = it },
@@ -246,7 +265,7 @@ fun AiModelsDialog(
                     }
                     cleaned = "$cleaned/v1"
                 }
-                onSaveSettings(localPath, cleaned, geminiKey)
+                onSaveSettings(localPath, cleaned, geminiKey, isRemoteEnabled)
                 onDismiss()
             }) {
                 Text("Save")

@@ -190,6 +190,19 @@ fun MainScreen(
                                 DropdownMenuItem(
                                     text = { 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Remote Desktop AI")
+                                            Spacer(Modifier.weight(1f))
+                                            Switch(
+                                                checked = settings.isRemoteEnabled,
+                                                onCheckedChange = { settingsViewModel.toggleRemoteEnabled(it) }
+                                            )
+                                        }
+                                    },
+                                    onClick = { settingsViewModel.toggleRemoteEnabled(!settings.isRemoteEnabled) }
+                                )
+                                DropdownMenuItem(
+                                    text = { 
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text("Audio Readback")
                                             Spacer(Modifier.weight(1f))
                                             Switch(
@@ -275,8 +288,8 @@ fun MainScreen(
             settings = settings,
             downloadProgress = downloadProgress,
             onDismiss = { showAiModelsDialog = false },
-            onSaveSettings = { localPath, desktopUrl, geminiKey ->
-                settingsViewModel.saveAiModelSettings(localPath, desktopUrl, geminiKey)
+            onSaveSettings = { localPath, desktopUrl, geminiKey, isRemoteEnabled ->
+                settingsViewModel.saveAiModelSettings(localPath, desktopUrl, geminiKey, isRemoteEnabled)
             },
             onRequestPermission = {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {

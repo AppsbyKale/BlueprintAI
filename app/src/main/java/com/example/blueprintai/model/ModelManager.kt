@@ -20,13 +20,17 @@ class ModelManager @Inject constructor(
 ) {
     suspend fun getActiveClient(): ModelClient {
         val currentSettings = settingsDao.getSettings().first() ?: Settings()
-        logManager.log("INFO", "Model", "Initializing ${currentSettings.modelMode} mode")
+        logManager.log("INFO", "Model", "Initializing ${currentSettings.modelMode} mode (Remote Enabled: ${currentSettings.isRemoteEnabled})")
 
         return when (currentSettings.modelMode) {
             "Desktop" -> {
-                val remote = RemoteModelClient(currentSettings.desktopUrl, httpClient)
-                if (remote.isAvailable()) remote
-                else FallbackModelClient("Error: Unable to connect to Desktop server at ${currentSettings.desktopUrl}.\nPlease check if your desktop server (e.g. LM Studio / Ollama) is running.")
+                if (!currentSettings.isRemoteEnabled) {
+                    FallbackModelClient("Remote AI Connection is currently suspended in Settings. Re-enable 'Remote Desktop AI' in the 3-dot menu to connect.")
+                } else {
+                    val remote = RemoteModelClient(currentSettings.desktopUrl, httpClient)
+                    if (remote.isAvailable()) remote
+                    else FallbackModelClient("Error: Unable to connect to Desktop server at ${currentSettings.desktopUrl}.\nPlease check if your desktop server (e.g. LM Studio / Ollama) is running.")
+                }
             }
             "Phone" -> {
                 if (currentSettings.localModelPath.isNotBlank() && File(currentSettings.localModelPath).exists()) {
@@ -38,11 +42,15 @@ class ModelManager @Inject constructor(
                 }
             }
             "Auto" -> {
-                val remote = RemoteModelClient(currentSettings.desktopUrl, httpClient)
-                if (remote.isAvailable()) {
-                    logManager.log("INFO", "Model", "Auto mode selected Desktop model")
-                    remote
-                } else if (currentSettings.geminiApiKey.isNotBlank()) {
+                if (currentSettings.isRemoteEnabled) {
+                    val remote = RemoteModelClient(currentSettings.desktopUrl, httpClient)
+                    if (remote.isAvailable()) {
+                        logManager.log("INFO", "Model", "Auto mode selected Desktop model")
+                        return remote
+                    }
+                }
+                
+                if (currentSettings.geminiApiKey.isNotBlank()) {
                     logManager.log("INFO", "Model", "Auto mode selected Gemini Cloud API")
                     GeminiModelClient(currentSettings.geminiApiKey, httpClient)
                 } else if (currentSettings.localModelPath.isNotBlank() && File(currentSettings.localModelPath).exists()) {
