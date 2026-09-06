@@ -62,6 +62,12 @@ class ChatViewModel @Inject constructor(
     private val _isExplainingConcepts = MutableStateFlow(false)
     val isExplainingConcepts: StateFlow<Boolean> = _isExplainingConcepts.asStateFlow()
 
+    val currentDebugInfo: StateFlow<DebugContextInfo?> = repository.currentDebugInfo
+
+    fun getDebugInfoForMessage(messageId: Long): DebugContextInfo? {
+        return repository.getDebugInfoForMessage(messageId) ?: repository.currentDebugInfo.value
+    }
+
     val isListening = voiceManager.isListening
     val recognizedText = voiceManager.recognizedText
 

@@ -4,6 +4,9 @@ import com.example.blueprintai.model.ChatMessage
 import com.example.blueprintai.model.ModelManager
 import com.example.blueprintai.model.ToolInterceptor
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import java.util.concurrent.ConcurrentHashMap
@@ -15,11 +18,20 @@ class ChatRepository @Inject constructor(
     private val folderDao: FolderDao,
     private val messageDao: MessageDao,
     private val attachmentDao: AttachmentDao,
+    private val settingsDao: SettingsDao,
     private val modelManager: ModelManager,
     private val toolInterceptor: ToolInterceptor
 ) {
     // Cache for older conversation summaries per folder: folderId -> Pair(Pair(olderMsgCount, starredCount), summaryText)
     private val folderSummaries = ConcurrentHashMap<Long, Pair<Pair<Int, Int>, String>>()
+
+    // Debug context info tracking
+    private val _currentDebugInfo = MutableStateFlow<DebugContextInfo?>(null)
+    val currentDebugInfo: StateFlow<DebugContextInfo?> = _currentDebugInfo.asStateFlow()
+
+    private val messageDebugMap = ConcurrentHashMap<Long, DebugContextInfo>()
+
+    fun getDebugInfoForMessage(messageId: Long): DebugContextInfo? = messageDebugMap[messageId]
 
     fun getMessages(folderId: Long): Flow<List<Message>> = messageDao.getMessagesByFolder(folderId)
 
@@ -38,6 +50,27 @@ class ChatRepository @Inject constructor(
 
         // Build efficient chat payload using 20-message sliding window + detailed project & starred summary for older history
         var currentHistory = buildCompressedChatHistory(folderId, allMessages)
+
+        val activeSettings = settingsDao.getSettings().first() ?: Settings()
+        val capacity = when (activeSettings.modelMode) {
+            "Desktop" -> 26000
+            "Phone" -> 4096
+            else -> 26000
+        }
+
+        val totalChars = currentHistory.sumOf { it.content.length }
+        val estTokens = (totalChars / 4).coerceAtLeast(1)
+
+        val debugInfo = DebugContextInfo(
+            modelMode = activeSettings.modelMode,
+            maxCapacityTokens = capacity,
+            estimatedTokensUsed = estTokens,
+            totalFolderMessages = allMessages.size,
+            verbatimMessagesCount = if (allMessages.size > 20) 20 else allMessages.size,
+            isSummaryIncluded = allMessages.size > 20,
+            messagesSent = currentHistory
+        )
+        _currentDebugInfo.value = debugInfo
 
         // Get active model client (Local, Desktop, or Gemini)
         val client = modelManager.getActiveClient()
@@ -62,7 +95,8 @@ class ChatRepository @Inject constructor(
             } else {
                 // Normal response
                 val aiMessage = Message(folderId = folderId, content = responseText, role = "assistant")
-                messageDao.insertMessage(aiMessage)
+                val insertedId = messageDao.insertMessage(aiMessage)
+                messageDebugMap[insertedId] = debugInfo
                 loop = false
             }
         }

@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.example.blueprintai.data.DebugContextInfo
 import com.example.blueprintai.data.Message
 
 @Composable
@@ -46,7 +47,9 @@ fun ChatScreen(
     val recognizedText by viewModel.recognizedText.collectAsState()
     val conceptExplanation by viewModel.conceptExplanation.collectAsState()
     val isExplainingConcepts by viewModel.isExplainingConcepts.collectAsState()
+    val currentDebugInfo by viewModel.currentDebugInfo.collectAsState()
     
+    var selectedDebugInfo by remember { mutableStateOf<DebugContextInfo?>(null) }
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -139,6 +142,44 @@ fun ChatScreen(
             }
         }
 
+        currentDebugInfo?.let { debug ->
+            Surface(
+                color = Color(0xFF141414),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Context: ${debug.estimatedTokensUsed} / ${debug.maxCapacityTokens} tokens (${(debug.usagePercentage * 100).toInt()}% used)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.LightGray
+                        )
+                        Text(
+                            text = if (debug.isSummaryIncluded) "20 verbatim + Summary" else "${debug.totalFolderMessages} messages",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    LinearProgressIndicator(
+                        progress = { debug.usagePercentage },
+                        modifier = Modifier.fillMaxWidth().height(4.dp),
+                        color = when {
+                            debug.usagePercentage > 0.9f -> MaterialTheme.colorScheme.error
+                            debug.usagePercentage > 0.7f -> Color.Yellow
+                            else -> MaterialTheme.colorScheme.primary
+                        },
+                        trackColor = Color(0xFF222222)
+                    )
+                }
+            }
+        }
+
         Box(modifier = Modifier.weight(1f)) {
             LazyColumn(
                 state = listState,
@@ -151,7 +192,10 @@ fun ChatScreen(
                         message = message,
                         onToggleStar = { viewModel.toggleKeyDecision(message) },
                         onUpdateTags = { viewModel.updateTags(message, it) },
-                        onExplainConcepts = { viewModel.explainConcepts(message) }
+                        onExplainConcepts = { viewModel.explainConcepts(message) },
+                        onInspectDebug = {
+                            selectedDebugInfo = viewModel.getDebugInfoForMessage(message.id)
+                        }
                     )
                 }
                 if (streamingResponse.isNotEmpty()) {
@@ -192,6 +236,13 @@ fun ChatScreen(
             explanation = conceptExplanation,
             isLoading = isExplainingConcepts,
             onDismiss = { viewModel.clearConceptExplanation() }
+        )
+    }
+
+    selectedDebugInfo?.let { debugInfo ->
+        DebugContextDialog(
+            debugInfo = debugInfo,
+            onDismiss = { selectedDebugInfo = null }
         )
     }
 }
@@ -239,7 +290,8 @@ fun MessageBubble(
     message: Message,
     onToggleStar: () -> Unit,
     onUpdateTags: (String) -> Unit,
-    onExplainConcepts: () -> Unit
+    onExplainConcepts: () -> Unit,
+    onInspectDebug: () -> Unit
 ) {
     val isUser = message.role == "user"
     var showTagDialog by remember { mutableStateOf(false) }
@@ -310,6 +362,13 @@ fun MessageBubble(
                             onExplainConcepts()
                         }
                     )
+                    DropdownMenuItem(
+                        text = { Text("Debug: Inspect Context & Tokens 🔍") },
+                        onClick = {
+                            showMenu = false
+                            onInspectDebug()
+                        }
+                    )
                 }
                 DropdownMenuItem(
                     text = { Text("Update Tags") },
@@ -377,6 +436,70 @@ fun StreamingBubble(content: String) {
             }
         }
     }
+}
+
+@Composable
+fun DebugContextDialog(
+    debugInfo: DebugContextInfo,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Debug: Context & Model Payload 🔍") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Mode: ${debugInfo.modelMode} • Max Capacity: ${debugInfo.maxCapacityTokens} tokens",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Estimated Payload Tokens: ${debugInfo.estimatedTokensUsed} (${(debugInfo.usagePercentage * 100).toInt()}% of capacity)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White
+                )
+                Text(
+                    text = "Folder Messages: ${debugInfo.totalFolderMessages} total (${debugInfo.verbatimMessagesCount} sent verbatim)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Exact Payload Sent to AI Model:", style = MaterialTheme.typography.labelLarge)
+                
+                LazyColumn(modifier = Modifier.heightIn(max = 350.dp).padding(top = 8.dp)) {
+                    items(debugInfo.messagesSent) { msg ->
+                        Surface(
+                            color = if (msg.role == "system") Color(0xFF2B2200) else if (msg.role == "user") Color(0xFF1E2638) else Color(0xFF1A1A1A),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text(
+                                    text = "ROLE: ${msg.role.uppercase()} (~${msg.content.length / 4} tokens)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (msg.role == "system") Color.Yellow else MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                SelectionContainer {
+                                    Text(
+                                        text = msg.content,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.LightGray
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
 
 @Composable
