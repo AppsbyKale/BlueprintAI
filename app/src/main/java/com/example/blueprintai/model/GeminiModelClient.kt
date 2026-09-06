@@ -80,4 +80,6 @@ class GeminiModelClient(
     override suspend fun isAvailable(): Boolean {
         return apiKey.isNotBlank()
     }
+
+    override suspend fun getContextCapacity(): Int = 1048576
 }

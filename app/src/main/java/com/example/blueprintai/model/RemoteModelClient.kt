@@ -49,6 +49,21 @@ data class DeltaChunk(
     val text: String? = null
 )
 
+@Serializable
+data class ModelInfo(
+    val id: String? = null,
+    val name: String? = null,
+    val context_length: Int? = null,
+    val max_model_len: Int? = null,
+    val context_window: Int? = null
+)
+
+@Serializable
+data class ModelsListResponse(
+    val data: List<ModelInfo>? = null,
+    val models: List<ModelInfo>? = null
+)
+
 class RemoteModelClient(
     private val baseUrl: String,
     private val httpClient: HttpClient
@@ -128,6 +143,36 @@ class RemoteModelClient(
             rootResp.status.value in 200..399
         } catch (e: Exception) {
             false
+        }
+    }
+
+    override suspend fun getContextCapacity(): Int = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val cleanUrl = baseUrl.trim().trimEnd('/')
+            val modelsResp = httpClient.get("$cleanUrl/models")
+            if (modelsResp.status.value in 200..299) {
+                val text = modelsResp.bodyAsText()
+                val parsed = json.decodeFromString<ModelsListResponse>(text)
+                val modelObj = parsed.data?.firstOrNull() ?: parsed.models?.firstOrNull()
+
+                val explicitLen = modelObj?.context_length ?: modelObj?.max_model_len ?: modelObj?.context_window
+                if (explicitLen != null && explicitLen > 1024) {
+                    return@withContext explicitLen
+                }
+
+                val modelName = (modelObj?.id ?: modelObj?.name ?: "").lowercase()
+                when {
+                    modelName.contains("128k") || modelName.contains("llama-3") || modelName.contains("gpt-4") || modelName.contains("claude") -> 131072
+                    modelName.contains("32k") || modelName.contains("qwen") || modelName.contains("mistral") -> 32768
+                    modelName.contains("16k") -> 16384
+                    modelName.contains("8k") || modelName.contains("gemma") -> 8192
+                    else -> 26000
+                }
+            } else {
+                26000
+            }
+        } catch (e: Exception) {
+            26000
         }
     }
 }

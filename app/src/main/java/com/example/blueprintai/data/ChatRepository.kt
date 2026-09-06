@@ -45,18 +45,16 @@ class ChatRepository @Inject constructor(
         val userMessage = Message(folderId = folderId, content = content, role = "user")
         messageDao.insertMessage(userMessage)
 
+        // Get active model client (Local, Desktop, or Gemini)
+        val client = modelManager.getActiveClient()
+        val capacity = client.getContextCapacity()
+        val activeSettings = settingsDao.getSettings().first() ?: Settings()
+
         // Load all stored messages for this folder
         val allMessages = messageDao.getMessagesByFolder(folderId).first()
 
         // Build efficient chat payload using 20-message sliding window + detailed project & starred summary for older history
-        var currentHistory = buildCompressedChatHistory(folderId, allMessages)
-
-        val activeSettings = settingsDao.getSettings().first() ?: Settings()
-        val capacity = when (activeSettings.modelMode) {
-            "Desktop" -> 26000
-            "Phone" -> 4096
-            else -> 26000
-        }
+        var currentHistory = buildCompressedChatHistory(folderId, allMessages, capacity)
 
         val totalChars = currentHistory.sumOf { it.content.length }
         val estTokens = (totalChars / 4).coerceAtLeast(1)
@@ -71,9 +69,6 @@ class ChatRepository @Inject constructor(
             messagesSent = currentHistory
         )
         _currentDebugInfo.value = debugInfo
-
-        // Get active model client (Local, Desktop, or Gemini)
-        val client = modelManager.getActiveClient()
 
         var loop = true
         var interactionCount = 0
@@ -102,14 +97,17 @@ class ChatRepository @Inject constructor(
         }
     }
 
-    private suspend fun buildCompressedChatHistory(folderId: Long, allMessages: List<Message>): List<ChatMessage> {
+    private suspend fun buildCompressedChatHistory(folderId: Long, allMessages: List<Message>, maxCapacity: Int): List<ChatMessage> {
         val windowSize = 20
-        if (allMessages.size <= windowSize) {
-            // Under 20 messages: send all verbatim
+        val compressionThresholdTokens = (maxCapacity * 0.60f).toInt().coerceAtLeast(1200)
+        val totalRawTokens = allMessages.sumOf { (it.content.length / 4).coerceAtLeast(1) }
+
+        if (allMessages.size <= windowSize && totalRawTokens <= compressionThresholdTokens) {
+            // Under 20 messages & under 60% capacity threshold: send all verbatim
             return allMessages.map { ChatMessage(role = it.role, content = it.content) }
         }
 
-        // More than 20 messages: split into older history and last 20 messages
+        // Over 20 messages or over 60% capacity threshold: split into older history and recent verbatim messages
         val olderMessages = allMessages.dropLast(windowSize)
         val recentMessages = allMessages.takeLast(windowSize)
         val starredMessages = allMessages.filter { it.isKeyDecision }
@@ -127,7 +125,7 @@ class ChatRepository @Inject constructor(
 
         val systemSummaryMessage = ChatMessage(
             role = "system",
-            content = "APP BRAINSTORMING CONTEXT & KEY DECISIONS:\n$summaryText"
+            content = "APP BRAINSTORMING CONTEXT & KEY DECISIONS (Auto-compressed prior history):\n$summaryText"
         )
 
         return listOf(systemSummaryMessage) + recentMessages.map { ChatMessage(role = it.role, content = it.content) }
