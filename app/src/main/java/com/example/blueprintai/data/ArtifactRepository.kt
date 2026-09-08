@@ -110,9 +110,26 @@ class ArtifactRepository @Inject constructor(
     }
 
     private suspend fun runGeneration(prompt: String): String {
-        val client = modelManager.getActiveClient()
-        val response = StringBuilder()
-        client.generateResponse(prompt).collect { response.append(it) }
-        return response.toString()
+        try {
+            val activeClient = modelManager.getActiveClient()
+            val response = StringBuilder()
+            activeClient.generateResponse(prompt).collect { response.append(it) }
+            val text = response.toString().trim()
+            if (text.isNotEmpty() && !text.startsWith("Error:")) {
+                return text
+            }
+        } catch (e: Throwable) {
+            // Primary failed, proceed to local fallback
+        }
+
+        return try {
+            val fallbackClient = modelManager.getLocalFallbackClient()
+            val response = StringBuilder()
+            fallbackClient.generateResponse(prompt).collect { response.append(it) }
+            val text = response.toString().trim()
+            if (text.isNotEmpty()) text else "Unable to generate artifact using primary or fallback model."
+        } catch (e: Throwable) {
+            "Error generating artifact: ${e.localizedMessage ?: "Unknown error"}"
+        }
     }
 }

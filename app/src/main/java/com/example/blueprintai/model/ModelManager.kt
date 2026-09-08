@@ -33,13 +33,7 @@ class ModelManager @Inject constructor(
                 }
             }
             "Phone" -> {
-                if (currentSettings.localModelPath.isNotBlank() && File(currentSettings.localModelPath).exists()) {
-                    LiteRtModelClient(context, currentSettings.localModelPath)
-                } else if (currentSettings.geminiApiKey.isNotBlank()) {
-                    GeminiModelClient(currentSettings.geminiApiKey, httpClient)
-                } else {
-                    FallbackModelClient("Error: Local model file not found at:\n'${currentSettings.localModelPath}'\n\nPlease check Settings (3-dot menu -> AI Models) to configure a valid model path or add a Gemini API Key.")
-                }
+                getLocalFallbackClient()
             }
             "Auto" -> {
                 if (currentSettings.isRemoteEnabled) {
@@ -50,23 +44,24 @@ class ModelManager @Inject constructor(
                     }
                 }
                 
-                if (currentSettings.geminiApiKey.isNotBlank()) {
-                    logManager.log("INFO", "Model", "Auto mode selected Gemini Cloud API")
-                    GeminiModelClient(currentSettings.geminiApiKey, httpClient)
-                } else if (currentSettings.localModelPath.isNotBlank() && File(currentSettings.localModelPath).exists()) {
-                    logManager.log("INFO", "Model", "Auto mode selected Local LiteRT model")
-                    LiteRtModelClient(context, currentSettings.localModelPath)
-                } else {
-                    FallbackModelClient("No AI Model Configured.\n\nPlease open Settings (3-dot menu -> AI Models) to configure:\n1. A Gemini API Key (cloud AI)\n2. A Desktop Server URL (e.g. LM Studio)\n3. A local MediaPipe .task / .bin model file")
-                }
+                getLocalFallbackClient()
             }
             else -> {
-                if (currentSettings.geminiApiKey.isNotBlank()) {
-                    GeminiModelClient(currentSettings.geminiApiKey, httpClient)
-                } else {
-                    LiteRtModelClient(context, currentSettings.localModelPath)
-                }
+                getLocalFallbackClient()
             }
+        }
+    }
+
+    suspend fun getLocalFallbackClient(): ModelClient {
+        val currentSettings = settingsDao.getSettings().first() ?: Settings()
+        return if (currentSettings.localModelPath.isNotBlank() && File(currentSettings.localModelPath).exists()) {
+            logManager.log("INFO", "Model", "Using Local LiteRT model fallback")
+            LiteRtModelClient(context, currentSettings.localModelPath)
+        } else if (currentSettings.geminiApiKey.isNotBlank()) {
+            logManager.log("INFO", "Model", "Using Gemini API fallback")
+            GeminiModelClient(currentSettings.geminiApiKey, httpClient)
+        } else {
+            FallbackModelClient("No local model or Gemini API Key configured for fallback.")
         }
     }
 }

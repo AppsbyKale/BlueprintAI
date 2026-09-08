@@ -165,29 +165,44 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun explainConcepts(messageContent: String): String {
-        return try {
-            val client = modelManager.getActiveClient()
-            val prompt = """
-                Analyze the following text/code snippet and explain it for a beginner software builder (a visual learner).
-                
-                Format your response clearly into 3 distinct sections:
-                
-                1. KEY CONCEPTS & TERMS
-                (Define 2-4 key technical terms or keywords mentioned in plain English with simple analogies).
-                
-                2. RELATIONSHIPS & CAUSE-AND-EFFECT
-                (Explain how the components interact. E.g., "If you change X, it affects Y").
-                
-                3. VISUAL FLOW / DIAGRAM
-                (Use simple text/ASCII boxes or step-by-step arrows to show the flow of data or execution).
-                
-                Snippet to Explain:
-                $messageContent
-            """.trimIndent()
+        val prompt = """
+            Analyze the following text/code snippet and explain it for a beginner software builder (a visual learner).
+            
+            Format your response clearly into 3 distinct sections:
+            
+            1. KEY CONCEPTS & TERMS
+            (Define 2-4 key technical terms or keywords mentioned in plain English with simple analogies).
+            
+            2. RELATIONSHIPS & CAUSE-AND-EFFECT
+            (Explain how the components interact. E.g., "If you change X, it affects Y").
+            
+            3. VISUAL FLOW / DIAGRAM
+            (Use simple text/ASCII boxes or step-by-step arrows to show the flow of data or execution).
+            
+            Snippet to Explain:
+            $messageContent
+        """.trimIndent()
 
+        // 1. Try active primary model client (Desktop / Auto / Phone)
+        try {
+            val client = modelManager.getActiveClient()
             val response = StringBuilder()
             client.generateResponse(prompt).collect { response.append(it) }
-            response.toString()
+            val text = response.toString().trim()
+            if (text.isNotEmpty() && !text.startsWith("Error:")) {
+                return text
+            }
+        } catch (e: Throwable) {
+            // Primary failed, proceed to local fallback
+        }
+
+        // 2. Fallback to local phone model or Gemini API
+        return try {
+            val fallbackClient = modelManager.getLocalFallbackClient()
+            val response = StringBuilder()
+            fallbackClient.generateResponse(prompt).collect { response.append(it) }
+            val text = response.toString().trim()
+            if (text.isNotEmpty()) text else "Unable to generate concept explanation."
         } catch (e: Throwable) {
             "Unable to generate concept explanation: ${e.localizedMessage ?: "Unknown error"}"
         }
