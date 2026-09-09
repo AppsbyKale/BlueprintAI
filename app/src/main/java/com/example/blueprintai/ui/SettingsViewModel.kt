@@ -39,6 +39,21 @@ class SettingsViewModel @Inject constructor(
         list.lastOrNull { it.tag == "Model" || it.tag == "Attachment" }?.message ?: "System Ready"
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "Initializing...")
 
+    init {
+        viewModelScope.launch {
+            val list = remoteModelProfileDao.getAllProfiles().first()
+            if (list.isEmpty()) {
+                val defaultProfile = RemoteModelProfile(
+                    label = "Home Desktop (LM Studio)",
+                    localIpUrl = "http://192.168.1.10:1234/v1",
+                    publicIpUrl = "",
+                    isActive = true
+                )
+                remoteModelProfileDao.insertProfile(defaultProfile)
+            }
+        }
+    }
+
     fun updateModelMode(mode: String) {
         viewModelScope.launch {
             val current = settings.value
@@ -53,13 +68,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun saveAiModelSettings(localPath: String, desktopUrl: String, geminiKey: String, isRemoteEnabled: Boolean) {
+    fun saveAiModelSettings(localPath: String, geminiKey: String, isRemoteEnabled: Boolean) {
         viewModelScope.launch {
             val current = settings.value
             settingsDao.saveSettings(
                 current.copy(
                     localModelPath = localPath,
-                    desktopUrl = desktopUrl,
                     geminiApiKey = geminiKey,
                     isRemoteEnabled = isRemoteEnabled
                 )
@@ -72,8 +86,8 @@ class SettingsViewModel @Inject constructor(
             remoteModelProfileDao.clearActiveProfiles()
             val profile = RemoteModelProfile(
                 label = label,
-                localIpUrl = localIpUrl,
-                publicIpUrl = publicIpUrl,
+                localIpUrl = cleanDesktopUrl(localIpUrl),
+                publicIpUrl = if (publicIpUrl.isNotBlank()) cleanDesktopUrl(publicIpUrl) else "",
                 apiKey = apiKey,
                 isActive = true
             )
@@ -83,7 +97,11 @@ class SettingsViewModel @Inject constructor(
 
     fun updateRemoteProfile(profile: RemoteModelProfile) {
         viewModelScope.launch {
-            remoteModelProfileDao.updateProfile(profile)
+            val updated = profile.copy(
+                localIpUrl = cleanDesktopUrl(profile.localIpUrl),
+                publicIpUrl = if (profile.publicIpUrl.isNotBlank()) cleanDesktopUrl(profile.publicIpUrl) else ""
+            )
+            remoteModelProfileDao.updateProfile(updated)
         }
     }
 
@@ -95,11 +113,7 @@ class SettingsViewModel @Inject constructor(
 
     fun setActiveRemoteProfile(profileId: Long) {
         viewModelScope.launch {
-            if (profileId == 0L) {
-                remoteModelProfileDao.clearActiveProfiles()
-            } else {
-                remoteModelProfileDao.switchActiveProfile(profileId)
-            }
+            remoteModelProfileDao.switchActiveProfile(profileId)
         }
     }
 
@@ -107,13 +121,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val current = settings.value
             settingsDao.saveSettings(current.copy(localModelPath = path))
-        }
-    }
-
-    fun updateDesktopUrl(url: String) {
-        viewModelScope.launch {
-            val current = settings.value
-            settingsDao.saveSettings(current.copy(desktopUrl = url))
         }
     }
 

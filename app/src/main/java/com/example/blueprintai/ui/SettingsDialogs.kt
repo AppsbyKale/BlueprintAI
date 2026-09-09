@@ -145,7 +145,7 @@ fun AiModelsDialog(
     remoteProfiles: List<RemoteModelProfile> = emptyList(),
     downloadProgress: DownloadProgress = DownloadProgress(),
     onDismiss: () -> Unit,
-    onSaveSettings: (localPath: String, desktopUrl: String, geminiKey: String, isRemoteEnabled: Boolean) -> Unit,
+    onSaveSettings: (localPath: String, geminiKey: String, isRemoteEnabled: Boolean) -> Unit,
     onRequestPermission: () -> Unit,
     onStartDownload: (String) -> Unit,
     onAddProfile: (label: String, localIp: String, publicIp: String, apiKey: String) -> Unit = { _, _, _, _ -> },
@@ -154,7 +154,6 @@ fun AiModelsDialog(
     onDeleteProfile: (RemoteModelProfile) -> Unit = {}
 ) {
     var localPath by remember(settings.localModelPath) { mutableStateOf(settings.localModelPath) }
-    var desktopUrl by remember(settings.desktopUrl) { mutableStateOf(settings.desktopUrl) }
     var geminiKey by remember(settings.geminiApiKey) { mutableStateOf(settings.geminiApiKey) }
     var isRemoteEnabled by remember(settings.isRemoteEnabled) { mutableStateOf(settings.isRemoteEnabled) }
     var showAddProfileDialog by remember { mutableStateOf(false) }
@@ -166,7 +165,7 @@ fun AiModelsDialog(
     LaunchedEffect(downloadProgress.isCompleted) {
         if (downloadProgress.isCompleted) {
             localPath = "/storage/emulated/0/Download/AI_Models/gemma-4-E2B-it.litertlm"
-            onSaveSettings(localPath, desktopUrl, geminiKey, isRemoteEnabled)
+            onSaveSettings(localPath, geminiKey, isRemoteEnabled)
         }
     }
 
@@ -283,7 +282,7 @@ fun AiModelsDialog(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = activeProfile?.label ?: "Use Base Server URL",
+                                    text = activeProfile?.label ?: "No Remote Profile Selected",
                                     style = MaterialTheme.typography.labelLarge,
                                     color = Color.White
                                 )
@@ -304,23 +303,6 @@ fun AiModelsDialog(
                         onDismissRequest = { activeProfileDropdownExpanded = false },
                         modifier = Modifier.fillMaxWidth(0.85f)
                     ) {
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = if (activeProfile == null) "✓ Base Server URL" else "Base Server URL",
-                                    color = if (activeProfile == null) MaterialTheme.colorScheme.primary else Color.White
-                                )
-                            },
-                            onClick = {
-                                onSelectProfile(0L)
-                                activeProfileDropdownExpanded = false
-                            }
-                        )
-
-                        if (remoteProfiles.isNotEmpty()) {
-                            HorizontalDivider()
-                        }
-
                         remoteProfiles.forEach { profile ->
                             var showItemMenu by remember { mutableStateOf(false) }
 
@@ -398,19 +380,6 @@ fun AiModelsDialog(
                 ) {
                     Text("+ Add Server Profile (Local & Public IP)")
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = desktopUrl,
-                    onValueChange = { desktopUrl = it },
-                    label = { Text("Base URL (e.g. 192.168.1.10:1234)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    "App will automatically append /v1 if missing",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray
-                )
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("Google Gemini API", style = MaterialTheme.typography.titleSmall)
@@ -424,8 +393,7 @@ fun AiModelsDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                val cleaned = cleanDesktopUrl(desktopUrl)
-                onSaveSettings(localPath, cleaned, geminiKey, isRemoteEnabled)
+                onSaveSettings(localPath, geminiKey, isRemoteEnabled)
                 onDismiss()
             }) {
                 Text("Save")

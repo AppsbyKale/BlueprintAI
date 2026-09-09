@@ -29,9 +29,12 @@ class ModelManager @Inject constructor(
                 if (!currentSettings.isRemoteEnabled) {
                     FallbackModelClient("Remote AI Connection is currently suspended in Settings. Re-enable 'Remote Desktop AI' in the 3-dot menu to connect.")
                 } else {
-                    val remote = createRemoteClient(currentSettings)
-                    if (remote.isAvailable()) remote
-                    else FallbackModelClient("Error: Unable to connect to Desktop server.\nPlease check if your desktop server or active profile is running.")
+                    val remote = createRemoteClient()
+                    if (remote != null && remote.isAvailable()) {
+                        remote
+                    } else {
+                        FallbackModelClient("Error: Unable to connect to Remote Server Profile.\nPlease check Settings (3-dot menu -> AI Models) to configure a valid Remote Server Profile.")
+                    }
                 }
             }
             "Phone" -> {
@@ -39,9 +42,9 @@ class ModelManager @Inject constructor(
             }
             "Auto" -> {
                 if (currentSettings.isRemoteEnabled) {
-                    val remote = createRemoteClient(currentSettings)
-                    if (remote.isAvailable()) {
-                        logManager.log("INFO", "Model", "Auto mode selected Desktop model")
+                    val remote = createRemoteClient()
+                    if (remote != null && remote.isAvailable()) {
+                        logManager.log("INFO", "Model", "Auto mode selected Desktop model profile")
                         return remote
                     }
                 }
@@ -54,9 +57,14 @@ class ModelManager @Inject constructor(
         }
     }
 
-    private suspend fun createRemoteClient(settings: Settings): RemoteModelClient {
+    private suspend fun createRemoteClient(): RemoteModelClient? {
         val activeProfile = remoteModelProfileDao.getActiveProfile()
+            ?: remoteModelProfileDao.getAllProfiles().first().firstOrNull()?.also {
+                remoteModelProfileDao.setActiveProfileById(it.id)
+            }
+
         return if (activeProfile != null) {
+            logManager.log("INFO", "Model", "Using active profile: ${activeProfile.label} (${activeProfile.localIpUrl})")
             RemoteModelClient(
                 localIpUrl = activeProfile.localIpUrl,
                 publicIpUrl = activeProfile.publicIpUrl,
@@ -64,12 +72,7 @@ class ModelManager @Inject constructor(
                 httpClient = httpClient
             )
         } else {
-            RemoteModelClient(
-                localIpUrl = settings.desktopUrl,
-                publicIpUrl = "",
-                apiKey = "",
-                httpClient = httpClient
-            )
+            null
         }
     }
 
