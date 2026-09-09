@@ -1,16 +1,20 @@
 package com.example.blueprintai.ui
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.example.blueprintai.data.DiagnosticLog
 import com.example.blueprintai.data.DownloadProgress
@@ -18,6 +22,25 @@ import com.example.blueprintai.data.RemoteModelProfile
 import com.example.blueprintai.data.Settings as AppSettings
 import java.text.SimpleDateFormat
 import java.util.*
+
+fun cleanDesktopUrl(input: String): String {
+    var url = input.trim()
+    if (url.isEmpty()) return ""
+
+    if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
+        url = "http://$url"
+    }
+
+    while (url.endsWith("/", ignoreCase = true) || url.endsWith("/v1", ignoreCase = true)) {
+        if (url.endsWith("/", ignoreCase = true)) {
+            url = url.trimEnd('/')
+        } else if (url.endsWith("/v1", ignoreCase = true)) {
+            url = url.substring(0, url.length - 3)
+        }
+    }
+
+    return "$url/v1"
+}
 
 @Composable
 fun LogsDialog(
@@ -126,6 +149,7 @@ fun AiModelsDialog(
     onRequestPermission: () -> Unit,
     onStartDownload: (String) -> Unit,
     onAddProfile: (label: String, localIp: String, publicIp: String, apiKey: String) -> Unit = { _, _, _, _ -> },
+    onUpdateProfile: (RemoteModelProfile) -> Unit = {},
     onSelectProfile: (Long) -> Unit = {},
     onDeleteProfile: (RemoteModelProfile) -> Unit = {}
 ) {
@@ -134,6 +158,10 @@ fun AiModelsDialog(
     var geminiKey by remember(settings.geminiApiKey) { mutableStateOf(settings.geminiApiKey) }
     var isRemoteEnabled by remember(settings.isRemoteEnabled) { mutableStateOf(settings.isRemoteEnabled) }
     var showAddProfileDialog by remember { mutableStateOf(false) }
+    var profileToEdit by remember { mutableStateOf<RemoteModelProfile?>(null) }
+    var activeProfileDropdownExpanded by remember { mutableStateOf(false) }
+
+    val activeProfile = remoteProfiles.find { it.isActive }
 
     LaunchedEffect(downloadProgress.isCompleted) {
         if (downloadProgress.isCompleted) {
@@ -235,51 +263,129 @@ fun AiModelsDialog(
                     )
                 }
 
-                if (remoteProfiles.isNotEmpty()) {
-                    Text(
-                        "Saved Remote Server Profiles",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.LightGray,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                    )
-                    remoteProfiles.forEach { profile ->
-                        Surface(
-                            color = if (profile.isActive) Color(0xFF1E2638) else Color(0xFF181818),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                Text(
+                    "Active Remote Server Profile",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.LightGray,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                )
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { activeProfileDropdownExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(8.dp).fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = profile.isActive,
-                                    onClick = { onSelectProfile(profile.id) }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = activeProfile?.label ?: "Use Base Server URL",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.White
                                 )
-                                Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
+                                if (activeProfile != null) {
                                     Text(
-                                        text = profile.label,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        text = "Local: ${profile.localIpUrl}",
+                                        text = "Local: ${activeProfile.localIpUrl}${if (activeProfile.publicIpUrl.isNotBlank()) " | Public: ${activeProfile.publicIpUrl}" else ""}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = Color.Gray
                                     )
-                                    if (profile.publicIpUrl.isNotBlank()) {
-                                        Text(
-                                            text = "Public: ${profile.publicIpUrl}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary
+                                }
+                            }
+                            Text("▼", color = Color.Gray)
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = activeProfileDropdownExpanded,
+                        onDismissRequest = { activeProfileDropdownExpanded = false },
+                        modifier = Modifier.fillMaxWidth(0.85f)
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = if (activeProfile == null) "✓ Base Server URL" else "Base Server URL",
+                                    color = if (activeProfile == null) MaterialTheme.colorScheme.primary else Color.White
+                                )
+                            },
+                            onClick = {
+                                onSelectProfile(0L)
+                                activeProfileDropdownExpanded = false
+                            }
+                        )
+
+                        if (remoteProfiles.isNotEmpty()) {
+                            HorizontalDivider()
+                        }
+
+                        remoteProfiles.forEach { profile ->
+                            var showItemMenu by remember { mutableStateOf(false) }
+
+                            Box {
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = if (profile.isActive) "✓ ${profile.label}" else profile.label,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = if (profile.isActive) MaterialTheme.colorScheme.primary else Color.White
+                                                )
+                                                Text(
+                                                    text = "Local: ${profile.localIpUrl}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color.Gray
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { showItemMenu = true },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.Gray)
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        onSelectProfile(profile.id)
+                                        activeProfileDropdownExpanded = false
+                                    },
+                                    modifier = Modifier.pointerInput(Unit) {
+                                        detectTapGestures(
+                                            onLongPress = { showItemMenu = true },
+                                            onTap = {
+                                                onSelectProfile(profile.id)
+                                                activeProfileDropdownExpanded = false
+                                            }
                                         )
                                     }
-                                }
-                                IconButton(
-                                    onClick = { onDeleteProfile(profile) },
-                                    modifier = Modifier.size(24.dp)
+                                )
+
+                                DropdownMenu(
+                                    expanded = showItemMenu,
+                                    onDismissRequest = { showItemMenu = false }
                                 ) {
-                                    Text("✕", color = Color.Gray)
+                                    DropdownMenuItem(
+                                        text = { Text("Edit Profile") },
+                                        onClick = {
+                                            profileToEdit = profile
+                                            showItemMenu = false
+                                            activeProfileDropdownExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete Profile", color = MaterialTheme.colorScheme.error) },
+                                        onClick = {
+                                            onDeleteProfile(profile)
+                                            showItemMenu = false
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -318,20 +424,7 @@ fun AiModelsDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                var cleaned = desktopUrl.trim()
-                if (cleaned.isNotBlank()) {
-                    if (!cleaned.startsWith("http://", ignoreCase = true) && !cleaned.startsWith("https://", ignoreCase = true)) {
-                        cleaned = "http://$cleaned"
-                    }
-                    while (cleaned.endsWith("/", ignoreCase = true) || cleaned.endsWith("/v1", ignoreCase = true)) {
-                        if (cleaned.endsWith("/", ignoreCase = true)) {
-                            cleaned = cleaned.trimEnd('/')
-                        } else if (cleaned.endsWith("/v1", ignoreCase = true)) {
-                            cleaned = cleaned.substring(0, cleaned.length - 3)
-                        }
-                    }
-                    cleaned = "$cleaned/v1"
-                }
+                val cleaned = cleanDesktopUrl(desktopUrl)
                 onSaveSettings(localPath, cleaned, geminiKey, isRemoteEnabled)
                 onDismiss()
             }) {
@@ -352,21 +445,40 @@ fun AiModelsDialog(
             }
         )
     }
+
+    profileToEdit?.let { profile ->
+        RemoteProfileDialog(
+            initialProfile = profile,
+            onDismiss = { profileToEdit = null },
+            onConfirm = { label, localIp, publicIp, apiKey ->
+                onUpdateProfile(
+                    profile.copy(
+                        label = label,
+                        localIpUrl = localIp,
+                        publicIpUrl = publicIp,
+                        apiKey = apiKey
+                    )
+                )
+                profileToEdit = null
+            }
+        )
+    }
 }
 
 @Composable
 fun RemoteProfileDialog(
+    initialProfile: RemoteModelProfile? = null,
     onDismiss: () -> Unit,
     onConfirm: (label: String, localIp: String, publicIp: String, apiKey: String) -> Unit
 ) {
-    var label by remember { mutableStateOf("") }
-    var localIp by remember { mutableStateOf("") }
-    var publicIp by remember { mutableStateOf("") }
-    var apiKey by remember { mutableStateOf("") }
+    var label by remember(initialProfile) { mutableStateOf(initialProfile?.label ?: "") }
+    var localIp by remember(initialProfile) { mutableStateOf(initialProfile?.localIpUrl ?: "") }
+    var publicIp by remember(initialProfile) { mutableStateOf(initialProfile?.publicIpUrl ?: "") }
+    var apiKey by remember(initialProfile) { mutableStateOf(initialProfile?.apiKey ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Remote Model Profile") },
+        title = { Text(if (initialProfile == null) "Add Remote Model Profile" else "Edit Remote Model Profile") },
         text = {
             Column {
                 OutlinedTextField(

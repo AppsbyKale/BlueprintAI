@@ -69,12 +69,13 @@ class SettingsViewModel @Inject constructor(
 
     fun addRemoteProfile(label: String, localIpUrl: String, publicIpUrl: String, apiKey: String) {
         viewModelScope.launch {
+            remoteModelProfileDao.clearActiveProfiles()
             val profile = RemoteModelProfile(
                 label = label,
                 localIpUrl = localIpUrl,
                 publicIpUrl = publicIpUrl,
                 apiKey = apiKey,
-                isActive = remoteProfiles.value.isEmpty()
+                isActive = true
             )
             remoteModelProfileDao.insertProfile(profile)
         }
@@ -94,7 +95,11 @@ class SettingsViewModel @Inject constructor(
 
     fun setActiveRemoteProfile(profileId: Long) {
         viewModelScope.launch {
-            remoteModelProfileDao.switchActiveProfile(profileId)
+            if (profileId == 0L) {
+                remoteModelProfileDao.clearActiveProfiles()
+            } else {
+                remoteModelProfileDao.switchActiveProfile(profileId)
+            }
         }
     }
 

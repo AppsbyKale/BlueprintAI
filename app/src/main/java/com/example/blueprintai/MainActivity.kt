@@ -305,6 +305,9 @@ fun MainScreen(
             onAddProfile = { label, localIp, publicIp, apiKey ->
                 settingsViewModel.addRemoteProfile(label, localIp, publicIp, apiKey)
             },
+            onUpdateProfile = { profile ->
+                settingsViewModel.updateRemoteProfile(profile)
+            },
             onSelectProfile = { profileId ->
                 settingsViewModel.setActiveRemoteProfile(profileId)
             },
