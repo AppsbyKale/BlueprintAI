@@ -201,6 +201,28 @@ fun MainScreen(
                                     },
                                     onClick = { settingsViewModel.toggleRemoteEnabled(!settings.isRemoteEnabled) }
                                 )
+                                remoteProfiles.find { it.isActive }?.let { activeProfile ->
+                                    if (settings.isRemoteEnabled && activeProfile.publicIpUrl.isNotBlank()) {
+                                        DropdownMenuItem(
+                                            text = { 
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text("IP: ${if (activeProfile.activeIpMode == "PUBLIC") "Public (Away)" else "Local (Wi-Fi)"}")
+                                                    Spacer(Modifier.weight(1f))
+                                                    Switch(
+                                                        checked = activeProfile.activeIpMode == "PUBLIC",
+                                                        onCheckedChange = { isPublic ->
+                                                            settingsViewModel.setProfileIpMode(activeProfile.id, if (isPublic) "PUBLIC" else "LOCAL")
+                                                        }
+                                                    )
+                                                }
+                                            },
+                                            onClick = {
+                                                val newMode = if (activeProfile.activeIpMode == "PUBLIC") "LOCAL" else "PUBLIC"
+                                                settingsViewModel.setProfileIpMode(activeProfile.id, newMode)
+                                            }
+                                        )
+                                    }
+                                }
                                 DropdownMenuItem(
                                     text = { 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -310,6 +332,9 @@ fun MainScreen(
             },
             onSelectProfile = { profileId ->
                 settingsViewModel.setActiveRemoteProfile(profileId)
+            },
+            onSetProfileIpMode = { profileId, mode ->
+                settingsViewModel.setProfileIpMode(profileId, mode)
             },
             onDeleteProfile = { profile ->
                 settingsViewModel.deleteRemoteProfile(profile)

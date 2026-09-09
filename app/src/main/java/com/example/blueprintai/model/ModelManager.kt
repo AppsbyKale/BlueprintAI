@@ -64,10 +64,16 @@ class ModelManager @Inject constructor(
             }
 
         return if (activeProfile != null) {
-            logManager.log("INFO", "Model", "Using active profile: ${activeProfile.label} (${activeProfile.localIpUrl})")
+            val selectedUrl = if (activeProfile.activeIpMode == "PUBLIC" && activeProfile.publicIpUrl.isNotBlank()) {
+                activeProfile.publicIpUrl
+            } else {
+                activeProfile.localIpUrl
+            }
+
+            logManager.log("INFO", "Model", "Using active profile '${activeProfile.label}' with ${activeProfile.activeIpMode} IP ($selectedUrl)")
+
             RemoteModelClient(
-                localIpUrl = activeProfile.localIpUrl,
-                publicIpUrl = activeProfile.publicIpUrl,
+                targetUrl = selectedUrl,
                 apiKey = activeProfile.apiKey,
                 httpClient = httpClient
             )

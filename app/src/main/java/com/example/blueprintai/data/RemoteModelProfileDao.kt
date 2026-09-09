@@ -26,6 +26,9 @@ interface RemoteModelProfileDao {
     @Query("UPDATE remote_model_profiles SET isActive = 1 WHERE id = :profileId")
     suspend fun setActiveProfileById(profileId: Long)
 
+    @Query("UPDATE remote_model_profiles SET activeIpMode = :mode WHERE id = :profileId")
+    suspend fun setProfileIpMode(profileId: Long, mode: String)
+
     @Transaction
     suspend fun switchActiveProfile(profileId: Long) {
         clearActiveProfiles()

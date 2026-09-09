@@ -151,6 +151,7 @@ fun AiModelsDialog(
     onAddProfile: (label: String, localIp: String, publicIp: String, apiKey: String) -> Unit = { _, _, _, _ -> },
     onUpdateProfile: (RemoteModelProfile) -> Unit = {},
     onSelectProfile: (Long) -> Unit = {},
+    onSetProfileIpMode: (Long, String) -> Unit = { _, _ -> },
     onDeleteProfile: (RemoteModelProfile) -> Unit = {}
 ) {
     var localPath by remember(settings.localModelPath) { mutableStateOf(settings.localModelPath) }
@@ -371,6 +372,29 @@ fun AiModelsDialog(
                                 }
                             }
                         }
+                    }
+                }
+
+                if (activeProfile != null && activeProfile.publicIpUrl.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Active IP:", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        
+                        FilterChip(
+                            selected = activeProfile.activeIpMode == "LOCAL",
+                            onClick = { onSetProfileIpMode(activeProfile.id, "LOCAL") },
+                            label = { Text("Local IP (Wi-Fi)", style = MaterialTheme.typography.labelSmall) }
+                        )
+                        
+                        FilterChip(
+                            selected = activeProfile.activeIpMode == "PUBLIC",
+                            onClick = { onSetProfileIpMode(activeProfile.id, "PUBLIC") },
+                            label = { Text("Public IP (Away)", style = MaterialTheme.typography.labelSmall) }
+                        )
                     }
                 }
 

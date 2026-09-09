@@ -65,30 +65,18 @@ data class ModelsListResponse(
 )
 
 class RemoteModelClient(
-    private val localIpUrl: String,
-    private val publicIpUrl: String = "",
+    private val targetUrl: String,
     private val apiKey: String = "",
     private val httpClient: HttpClient
 ) : ModelClient {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    private suspend fun resolveReachableUrl(): String = withContext(Dispatchers.IO) {
-        val cleanLocal = localIpUrl.trim().trimEnd('/')
-        if (cleanLocal.isNotEmpty() && checkPing(cleanLocal)) {
-            return@withContext cleanLocal
-        }
+    private fun getCleanUrl(): String = targetUrl.trim().trimEnd('/')
 
-        val cleanPublic = publicIpUrl.trim().trimEnd('/')
-        if (cleanPublic.isNotEmpty() && checkPing(cleanPublic)) {
-            return@withContext cleanPublic
-        }
-
-        return@withContext if (cleanLocal.isNotEmpty()) cleanLocal else cleanPublic
-    }
-
-    private suspend fun checkPing(baseUrl: String): Boolean = try {
-        val response = httpClient.get("$baseUrl/models") {
+    private suspend fun checkPing(): Boolean = try {
+        val cleanUrl = getCleanUrl()
+        val response = httpClient.get("$cleanUrl/models") {
             if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
         }
         response.status.value in 200..399
@@ -98,7 +86,7 @@ class RemoteModelClient(
 
     override fun generateChatResponse(messages: List<ChatMessage>): Flow<String> = flow {
         try {
-            val cleanUrl = resolveReachableUrl()
+            val cleanUrl = getCleanUrl()
             val response = httpClient.post("$cleanUrl/chat/completions") {
                 contentType(ContentType.Application.Json)
                 if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
@@ -160,14 +148,12 @@ class RemoteModelClient(
     }.flowOn(Dispatchers.IO)
 
     override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
-        val cleanLocal = localIpUrl.trim().trimEnd('/')
-        val cleanPublic = publicIpUrl.trim().trimEnd('/')
-        return@withContext (cleanLocal.isNotEmpty() && checkPing(cleanLocal)) || (cleanPublic.isNotEmpty() && checkPing(cleanPublic))
+        return@withContext checkPing()
     }
 
     override suspend fun getContextCapacity(): Int = withContext(Dispatchers.IO) {
         return@withContext try {
-            val cleanUrl = resolveReachableUrl()
+            val cleanUrl = getCleanUrl()
             val modelsResp = httpClient.get("$cleanUrl/models") {
                 if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
             }

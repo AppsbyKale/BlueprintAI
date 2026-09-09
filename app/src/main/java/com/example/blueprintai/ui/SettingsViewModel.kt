@@ -117,6 +117,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setProfileIpMode(profileId: Long, mode: String) {
+        viewModelScope.launch {
+            remoteModelProfileDao.setProfileIpMode(profileId, mode)
+        }
+    }
+
     fun updateLocalPath(path: String) {
         viewModelScope.launch {
             val current = settings.value
