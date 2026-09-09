@@ -27,7 +27,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "blueprint_ai_db"
         )
-        .fallbackToDestructiveMigrationOnDowngrade()
+        .fallbackToDestructiveMigration()
         .build()
     }
 
