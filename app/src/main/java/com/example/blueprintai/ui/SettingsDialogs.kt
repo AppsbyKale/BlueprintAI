@@ -26,22 +26,20 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 fun cleanDesktopUrl(input: String): String {
-    var url = input.trim()
-    if (url.isEmpty()) return ""
+    val trimmed = input.trim().trimEnd('/')
+    if (trimmed.isEmpty()) return ""
 
-    if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
-        url = "http://$url"
+    var url = if (!trimmed.startsWith("http://", ignoreCase = true) && !trimmed.startsWith("https://", ignoreCase = true)) {
+        "http://$trimmed"
+    } else {
+        trimmed
     }
 
-    while (url.endsWith("/", ignoreCase = true) || url.endsWith("/v1", ignoreCase = true)) {
-        if (url.endsWith("/", ignoreCase = true)) {
-            url = url.trimEnd('/')
-        } else if (url.endsWith("/v1", ignoreCase = true)) {
-            url = url.substring(0, url.length - 3)
-        }
+    if (!url.endsWith("/v1", ignoreCase = true)) {
+        url = "$url/v1"
     }
 
-    return "$url/v1"
+    return url
 }
 
 @Composable
