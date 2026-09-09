@@ -8,6 +8,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -159,7 +161,6 @@ fun AiModelsDialog(
     var isRemoteEnabled by remember(settings.isRemoteEnabled) { mutableStateOf(settings.isRemoteEnabled) }
     var showAddProfileDialog by remember { mutableStateOf(false) }
     var profileToEdit by remember { mutableStateOf<RemoteModelProfile?>(null) }
-    var activeProfileDropdownExpanded by remember { mutableStateOf(false) }
 
     val activeProfile = remoteProfiles.find { it.isActive }
 
@@ -263,112 +264,68 @@ fun AiModelsDialog(
                     )
                 }
 
-                Text(
-                    "Active Remote Server Profile",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.LightGray,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
+                if (remoteProfiles.isNotEmpty()) {
+                    Text(
+                        "Saved Remote Server Profiles (Tap to Select • Long Press or Edit to Change)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.LightGray,
+                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                    )
 
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick = { activeProfileDropdownExpanded = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    remoteProfiles.forEach { profile ->
+                        Surface(
+                            color = if (profile.isActive) Color(0xFF1E2638) else Color(0xFF181818),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .pointerInput(profile.id) {
+                                    detectTapGestures(
+                                        onTap = { onSelectProfile(profile.id) },
+                                        onLongPress = { profileToEdit = profile }
+                                    )
+                                }
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = activeProfile?.label ?: "No Remote Profile Selected",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = Color.White
+                            Row(
+                                modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = profile.isActive,
+                                    onClick = { onSelectProfile(profile.id) }
                                 )
-                                if (activeProfile != null) {
+                                Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
                                     Text(
-                                        text = "Local: ${activeProfile.localIpUrl}${if (activeProfile.publicIpUrl.isNotBlank()) " | Public: ${activeProfile.publicIpUrl}" else ""}",
+                                        text = profile.label,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = if (profile.isActive) MaterialTheme.colorScheme.primary else Color.White
+                                    )
+                                    Text(
+                                        text = "Local: ${profile.localIpUrl}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = Color.Gray
                                     )
-                                }
-                            }
-                            Text("▼", color = Color.Gray)
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = activeProfileDropdownExpanded,
-                        onDismissRequest = { activeProfileDropdownExpanded = false },
-                        modifier = Modifier.fillMaxWidth(0.85f)
-                    ) {
-                        remoteProfiles.forEach { profile ->
-                            var showItemMenu by remember { mutableStateOf(false) }
-
-                            Box {
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = if (profile.isActive) "✓ ${profile.label}" else profile.label,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = if (profile.isActive) MaterialTheme.colorScheme.primary else Color.White
-                                                )
-                                                Text(
-                                                    text = "Local: ${profile.localIpUrl}",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = Color.Gray
-                                                )
-                                            }
-                                            IconButton(
-                                                onClick = { showItemMenu = true },
-                                                modifier = Modifier.size(24.dp)
-                                            ) {
-                                                Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.Gray)
-                                            }
-                                        }
-                                    },
-                                    onClick = {
-                                        onSelectProfile(profile.id)
-                                        activeProfileDropdownExpanded = false
-                                    },
-                                    modifier = Modifier.pointerInput(Unit) {
-                                        detectTapGestures(
-                                            onLongPress = { showItemMenu = true },
-                                            onTap = {
-                                                onSelectProfile(profile.id)
-                                                activeProfileDropdownExpanded = false
-                                            }
+                                    if (profile.publicIpUrl.isNotBlank()) {
+                                        Text(
+                                            text = "Public: ${profile.publicIpUrl}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.secondary
                                         )
                                     }
-                                )
-
-                                DropdownMenu(
-                                    expanded = showItemMenu,
-                                    onDismissRequest = { showItemMenu = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Edit Profile") },
-                                        onClick = {
-                                            profileToEdit = profile
-                                            showItemMenu = false
-                                            activeProfileDropdownExpanded = false
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Delete Profile", color = MaterialTheme.colorScheme.error) },
-                                        onClick = {
-                                            onDeleteProfile(profile)
-                                            showItemMenu = false
-                                        }
-                                    )
+                                }
+                                Row {
+                                    IconButton(
+                                        onClick = { profileToEdit = profile },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Edit Profile", tint = Color.LightGray, modifier = Modifier.size(18.dp))
+                                    }
+                                    IconButton(
+                                        onClick = { onDeleteProfile(profile) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete Profile", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                    }
                                 }
                             }
                         }
