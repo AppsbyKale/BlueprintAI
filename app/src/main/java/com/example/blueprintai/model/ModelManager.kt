@@ -2,6 +2,7 @@ package com.example.blueprintai.model
 
 import android.content.Context
 import com.example.blueprintai.data.LogManager
+import com.example.blueprintai.data.RemoteModelProfileDao
 import com.example.blueprintai.data.Settings
 import com.example.blueprintai.data.SettingsDao
 import io.ktor.client.*
@@ -15,6 +16,7 @@ import javax.inject.Singleton
 class ModelManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsDao: SettingsDao,
+    private val remoteModelProfileDao: RemoteModelProfileDao,
     private val httpClient: HttpClient,
     private val logManager: LogManager
 ) {
@@ -27,9 +29,9 @@ class ModelManager @Inject constructor(
                 if (!currentSettings.isRemoteEnabled) {
                     FallbackModelClient("Remote AI Connection is currently suspended in Settings. Re-enable 'Remote Desktop AI' in the 3-dot menu to connect.")
                 } else {
-                    val remote = RemoteModelClient(currentSettings.desktopUrl, httpClient)
+                    val remote = createRemoteClient(currentSettings)
                     if (remote.isAvailable()) remote
-                    else FallbackModelClient("Error: Unable to connect to Desktop server at ${currentSettings.desktopUrl}.\nPlease check if your desktop server (e.g. LM Studio / Ollama) is running.")
+                    else FallbackModelClient("Error: Unable to connect to Desktop server.\nPlease check if your desktop server or active profile is running.")
                 }
             }
             "Phone" -> {
@@ -37,7 +39,7 @@ class ModelManager @Inject constructor(
             }
             "Auto" -> {
                 if (currentSettings.isRemoteEnabled) {
-                    val remote = RemoteModelClient(currentSettings.desktopUrl, httpClient)
+                    val remote = createRemoteClient(currentSettings)
                     if (remote.isAvailable()) {
                         logManager.log("INFO", "Model", "Auto mode selected Desktop model")
                         return remote
@@ -49,6 +51,25 @@ class ModelManager @Inject constructor(
             else -> {
                 getLocalFallbackClient()
             }
+        }
+    }
+
+    private suspend fun createRemoteClient(settings: Settings): RemoteModelClient {
+        val activeProfile = remoteModelProfileDao.getActiveProfile()
+        return if (activeProfile != null) {
+            RemoteModelClient(
+                localIpUrl = activeProfile.localIpUrl,
+                publicIpUrl = activeProfile.publicIpUrl,
+                apiKey = activeProfile.apiKey,
+                httpClient = httpClient
+            )
+        } else {
+            RemoteModelClient(
+                localIpUrl = settings.desktopUrl,
+                publicIpUrl = "",
+                apiKey = "",
+                httpClient = httpClient
+            )
         }
     }
 

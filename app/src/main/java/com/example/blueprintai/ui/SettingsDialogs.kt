@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.blueprintai.data.DiagnosticLog
 import com.example.blueprintai.data.DownloadProgress
+import com.example.blueprintai.data.RemoteModelProfile
 import com.example.blueprintai.data.Settings as AppSettings
 import java.text.SimpleDateFormat
 import java.util.*
@@ -117,16 +119,21 @@ fun BackupDialog(
 @Composable
 fun AiModelsDialog(
     settings: AppSettings,
+    remoteProfiles: List<RemoteModelProfile> = emptyList(),
     downloadProgress: DownloadProgress = DownloadProgress(),
     onDismiss: () -> Unit,
     onSaveSettings: (localPath: String, desktopUrl: String, geminiKey: String, isRemoteEnabled: Boolean) -> Unit,
     onRequestPermission: () -> Unit,
-    onStartDownload: (String) -> Unit
+    onStartDownload: (String) -> Unit,
+    onAddProfile: (label: String, localIp: String, publicIp: String, apiKey: String) -> Unit = { _, _, _, _ -> },
+    onSelectProfile: (Long) -> Unit = {},
+    onDeleteProfile: (RemoteModelProfile) -> Unit = {}
 ) {
     var localPath by remember(settings.localModelPath) { mutableStateOf(settings.localModelPath) }
     var desktopUrl by remember(settings.desktopUrl) { mutableStateOf(settings.desktopUrl) }
     var geminiKey by remember(settings.geminiApiKey) { mutableStateOf(settings.geminiApiKey) }
     var isRemoteEnabled by remember(settings.isRemoteEnabled) { mutableStateOf(settings.isRemoteEnabled) }
+    var showAddProfileDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(downloadProgress.isCompleted) {
         if (downloadProgress.isCompleted) {
@@ -227,6 +234,66 @@ fun AiModelsDialog(
                         color = MaterialTheme.colorScheme.error
                     )
                 }
+
+                if (remoteProfiles.isNotEmpty()) {
+                    Text(
+                        "Saved Remote Server Profiles",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.LightGray,
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                    )
+                    remoteProfiles.forEach { profile ->
+                        Surface(
+                            color = if (profile.isActive) Color(0xFF1E2638) else Color(0xFF181818),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(8.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = profile.isActive,
+                                    onClick = { onSelectProfile(profile.id) }
+                                )
+                                Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
+                                    Text(
+                                        text = profile.label,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "Local: ${profile.localIpUrl}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.Gray
+                                    )
+                                    if (profile.publicIpUrl.isNotBlank()) {
+                                        Text(
+                                            text = "Public: ${profile.publicIpUrl}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                                IconButton(
+                                    onClick = { onDeleteProfile(profile) },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Text("✕", color = Color.Gray)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = { showAddProfileDialog = true },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) {
+                    Text("+ Add Server Profile (Local & Public IP)")
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = desktopUrl,
                     onValueChange = { desktopUrl = it },
@@ -269,6 +336,88 @@ fun AiModelsDialog(
                 onDismiss()
             }) {
                 Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+
+    if (showAddProfileDialog) {
+        RemoteProfileDialog(
+            onDismiss = { showAddProfileDialog = false },
+            onConfirm = { label, localIp, publicIp, apiKey ->
+                onAddProfile(label, localIp, publicIp, apiKey)
+                showAddProfileDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+fun RemoteProfileDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (label: String, localIp: String, publicIp: String, apiKey: String) -> Unit
+) {
+    var label by remember { mutableStateOf("") }
+    var localIp by remember { mutableStateOf("") }
+    var publicIp by remember { mutableStateOf("") }
+    var apiKey by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Remote Model Profile") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = it },
+                    placeholder = { Text("e.g. Home Desktop (LM Studio)") },
+                    label = { Text("Profile Name / Label") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = localIp,
+                    onValueChange = { localIp = it },
+                    placeholder = { Text("e.g. 192.168.1.50:1234") },
+                    label = { Text("Local IP / Home Wi-Fi URL") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = publicIp,
+                    onValueChange = { publicIp = it },
+                    placeholder = { Text("e.g. 73.120.10.5:1234 or LM Link") },
+                    label = { Text("Public IP / Away URL (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    label = { Text("API Key (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm(
+                        label.ifBlank { "Desktop Server" },
+                        localIp.trim(),
+                        publicIp.trim(),
+                        apiKey.trim()
+                    )
+                },
+                enabled = localIp.isNotBlank() || publicIp.isNotBlank()
+            ) {
+                Text("Save Profile")
             }
         },
         dismissButton = {

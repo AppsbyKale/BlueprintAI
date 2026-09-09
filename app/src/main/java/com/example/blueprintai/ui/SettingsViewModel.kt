@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.blueprintai.data.BackupManager
 import com.example.blueprintai.data.LogManager
 import com.example.blueprintai.data.ModelDownloader
+import com.example.blueprintai.data.RemoteModelProfile
+import com.example.blueprintai.data.RemoteModelProfileDao
 import com.example.blueprintai.data.Settings
 import com.example.blueprintai.data.SettingsDao
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,6 +18,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsDao: SettingsDao,
+    private val remoteModelProfileDao: RemoteModelProfileDao,
     private val backupManager: BackupManager,
     private val logManager: LogManager,
     private val modelDownloader: ModelDownloader
@@ -24,6 +27,9 @@ class SettingsViewModel @Inject constructor(
     val settings: StateFlow<Settings> = settingsDao.getSettings()
         .map { it ?: Settings() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Settings())
+
+    val remoteProfiles: StateFlow<List<RemoteModelProfile>> = remoteModelProfileDao.getAllProfiles()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val downloadProgress = modelDownloader.downloadProgress
 
@@ -58,6 +64,37 @@ class SettingsViewModel @Inject constructor(
                     isRemoteEnabled = isRemoteEnabled
                 )
             )
+        }
+    }
+
+    fun addRemoteProfile(label: String, localIpUrl: String, publicIpUrl: String, apiKey: String) {
+        viewModelScope.launch {
+            val profile = RemoteModelProfile(
+                label = label,
+                localIpUrl = localIpUrl,
+                publicIpUrl = publicIpUrl,
+                apiKey = apiKey,
+                isActive = remoteProfiles.value.isEmpty()
+            )
+            remoteModelProfileDao.insertProfile(profile)
+        }
+    }
+
+    fun updateRemoteProfile(profile: RemoteModelProfile) {
+        viewModelScope.launch {
+            remoteModelProfileDao.updateProfile(profile)
+        }
+    }
+
+    fun deleteRemoteProfile(profile: RemoteModelProfile) {
+        viewModelScope.launch {
+            remoteModelProfileDao.deleteProfile(profile)
+        }
+    }
+
+    fun setActiveRemoteProfile(profileId: Long) {
+        viewModelScope.launch {
+            remoteModelProfileDao.switchActiveProfile(profileId)
         }
     }
 

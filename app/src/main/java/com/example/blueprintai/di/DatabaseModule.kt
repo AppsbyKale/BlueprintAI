@@ -6,6 +6,7 @@ import com.example.blueprintai.data.AppDatabase
 import com.example.blueprintai.data.AttachmentDao
 import com.example.blueprintai.data.FolderDao
 import com.example.blueprintai.data.MessageDao
+import com.example.blueprintai.data.RemoteModelProfileDao
 import com.example.blueprintai.data.SettingsDao
 import dagger.Module
 import dagger.Provides
@@ -41,4 +42,7 @@ object DatabaseModule {
 
     @Provides
     fun provideSettingsDao(db: AppDatabase): SettingsDao = db.settingsDao()
+
+    @Provides
+    fun provideRemoteModelProfileDao(db: AppDatabase): RemoteModelProfileDao = db.remoteModelProfileDao()
 }

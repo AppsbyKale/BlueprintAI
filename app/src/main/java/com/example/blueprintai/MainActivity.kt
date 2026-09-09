@@ -73,6 +73,7 @@ fun MainScreen(
     val exportState by artifactViewModel.exportState.collectAsState()
     val currentFolderId by chatViewModel.currentFolderId.collectAsState()
     val downloadProgress by settingsViewModel.downloadProgress.collectAsState()
+    val remoteProfiles by settingsViewModel.remoteProfiles.collectAsState()
 
     val folders by chatViewModel.folders.collectAsState()
     val context = LocalContext.current
@@ -286,6 +287,7 @@ fun MainScreen(
     if (showAiModelsDialog) {
         AiModelsDialog(
             settings = settings,
+            remoteProfiles = remoteProfiles,
             downloadProgress = downloadProgress,
             onDismiss = { showAiModelsDialog = false },
             onSaveSettings = { localPath, desktopUrl, geminiKey, isRemoteEnabled ->
@@ -299,6 +301,15 @@ fun MainScreen(
             },
             onStartDownload = { url ->
                 settingsViewModel.downloadGemmaModel(url)
+            },
+            onAddProfile = { label, localIp, publicIp, apiKey ->
+                settingsViewModel.addRemoteProfile(label, localIp, publicIp, apiKey)
+            },
+            onSelectProfile = { profileId ->
+                settingsViewModel.setActiveRemoteProfile(profileId)
+            },
+            onDeleteProfile = { profile ->
+                settingsViewModel.deleteRemoteProfile(profile)
             }
         )
     }
