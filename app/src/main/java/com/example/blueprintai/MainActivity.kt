@@ -26,7 +26,7 @@ import com.example.blueprintai.ui.ArtifactViewModel
 import com.example.blueprintai.ui.ExportDialog
 import com.example.blueprintai.ui.theme.BlueprintAITheme
 import dagger.hilt.android.AndroidEntryPoint
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
