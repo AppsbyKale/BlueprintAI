@@ -312,8 +312,8 @@ fun MainScreen(
             remoteProfiles = remoteProfiles,
             downloadProgress = downloadProgress,
             onDismiss = { showAiModelsDialog = false },
-            onSaveSettings = { localPath, geminiKey, isRemoteEnabled ->
-                settingsViewModel.saveAiModelSettings(localPath, geminiKey, isRemoteEnabled)
+            onSaveSettings = { localPath, desktopUrl, geminiKey, isRemoteEnabled ->
+                settingsViewModel.saveAiModelSettings(localPath, desktopUrl, geminiKey, isRemoteEnabled)
             },
             onRequestPermission = {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {

@@ -43,9 +43,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val list = remoteModelProfileDao.getAllProfiles().first()
             if (list.isEmpty()) {
+                val initialUrl = settings.value.desktopUrl.ifBlank { "http://192.168.1.10:1234/v1" }
                 val defaultProfile = RemoteModelProfile(
                     label = "Home Desktop (LM Studio)",
-                    localIpUrl = "http://192.168.1.10:1234/v1",
+                    localIpUrl = cleanDesktopUrl(initialUrl),
                     publicIpUrl = "",
                     isActive = true
                 )
@@ -68,40 +69,73 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun saveAiModelSettings(localPath: String, geminiKey: String, isRemoteEnabled: Boolean) {
+    fun saveAiModelSettings(localPath: String, desktopUrl: String, geminiKey: String, isRemoteEnabled: Boolean) {
         viewModelScope.launch {
             val current = settings.value
+            val cleanUrl = if (desktopUrl.isNotBlank()) cleanDesktopUrl(desktopUrl) else current.desktopUrl
+            
             settingsDao.saveSettings(
                 current.copy(
                     localModelPath = localPath,
+                    desktopUrl = cleanUrl,
                     geminiApiKey = geminiKey,
                     isRemoteEnabled = isRemoteEnabled
                 )
             )
+
+            if (cleanUrl.isNotBlank()) {
+                val activeProfile = remoteModelProfileDao.getActiveProfile()
+                if (activeProfile != null) {
+                    remoteModelProfileDao.updateProfile(
+                        activeProfile.copy(localIpUrl = cleanUrl)
+                    )
+                } else {
+                    remoteModelProfileDao.insertProfile(
+                        RemoteModelProfile(
+                            label = "Home Desktop",
+                            localIpUrl = cleanUrl,
+                            isActive = true
+                        )
+                    )
+                }
+            }
         }
     }
 
     fun addRemoteProfile(label: String, localIpUrl: String, publicIpUrl: String, apiKey: String) {
         viewModelScope.launch {
             remoteModelProfileDao.clearActiveProfiles()
+            val cleanLocal = cleanDesktopUrl(localIpUrl)
+            val cleanPublic = if (publicIpUrl.isNotBlank()) cleanDesktopUrl(publicIpUrl) else ""
             val profile = RemoteModelProfile(
                 label = label,
-                localIpUrl = cleanDesktopUrl(localIpUrl),
-                publicIpUrl = if (publicIpUrl.isNotBlank()) cleanDesktopUrl(publicIpUrl) else "",
+                localIpUrl = cleanLocal,
+                publicIpUrl = cleanPublic,
                 apiKey = apiKey,
                 isActive = true
             )
             remoteModelProfileDao.insertProfile(profile)
+            
+            // Sync with settings desktopUrl
+            val current = settings.value
+            settingsDao.saveSettings(current.copy(desktopUrl = cleanLocal))
         }
     }
 
     fun updateRemoteProfile(profile: RemoteModelProfile) {
         viewModelScope.launch {
+            val cleanLocal = cleanDesktopUrl(profile.localIpUrl)
+            val cleanPublic = if (profile.publicIpUrl.isNotBlank()) cleanDesktopUrl(profile.publicIpUrl) else ""
             val updated = profile.copy(
-                localIpUrl = cleanDesktopUrl(profile.localIpUrl),
-                publicIpUrl = if (profile.publicIpUrl.isNotBlank()) cleanDesktopUrl(profile.publicIpUrl) else ""
+                localIpUrl = cleanLocal,
+                publicIpUrl = cleanPublic
             )
             remoteModelProfileDao.updateProfile(updated)
+
+            if (profile.isActive) {
+                val current = settings.value
+                settingsDao.saveSettings(current.copy(desktopUrl = cleanLocal))
+            }
         }
     }
 
@@ -114,6 +148,11 @@ class SettingsViewModel @Inject constructor(
     fun setActiveRemoteProfile(profileId: Long) {
         viewModelScope.launch {
             remoteModelProfileDao.switchActiveProfile(profileId)
+            val active = remoteModelProfileDao.getActiveProfile()
+            if (active != null) {
+                val current = settings.value
+                settingsDao.saveSettings(current.copy(desktopUrl = active.localIpUrl))
+            }
         }
     }
 
