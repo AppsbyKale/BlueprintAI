@@ -65,23 +65,65 @@ data class ModelsListResponse(
 )
 
 class RemoteModelClient(
-    private val targetUrl: String,
+    val targetUrl: String,
     private val apiKey: String = "",
     private val httpClient: HttpClient
 ) : ModelClient {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun getCleanUrl(): String = targetUrl.trim().trimEnd('/')
-
-    private suspend fun checkPing(): Boolean = try {
-        val cleanUrl = getCleanUrl()
-        val response = httpClient.get("$cleanUrl/models") {
-            if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
+    fun getCleanUrl(): String {
+        var url = targetUrl.trim()
+        if (url.isEmpty()) return ""
+        if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
+            url = "http://$url"
         }
-        response.status.value in 200..399
-    } catch (e: Exception) {
-        false
+        while (url.endsWith("/", ignoreCase = true) || url.endsWith("/v1", ignoreCase = true)) {
+            if (url.endsWith("/", ignoreCase = true)) {
+                url = url.trimEnd('/')
+            } else if (url.endsWith("/v1", ignoreCase = true)) {
+                url = url.substring(0, url.length - 3)
+            }
+        }
+        return "$url/v1"
+    }
+
+    private suspend fun checkPing(): Boolean {
+        val cleanUrl = getCleanUrl()
+        if (cleanUrl.isBlank()) return false
+
+        // 1. Try $cleanUrl/models (e.g. http://192.168.1.50:1234/v1/models)
+        try {
+            val response = httpClient.get("$cleanUrl/models") {
+                if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
+            }
+            if (response.status.value in 200..405) return true
+        } catch (e: Exception) {
+            // Ignore
+        }
+
+        // 2. Try $baseUrl/models without /v1 (e.g. http://192.168.1.50:1234/models)
+        val rootUrl = cleanUrl.removeSuffix("/v1").removeSuffix("/v1/")
+        try {
+            val response = httpClient.get("$rootUrl/models") {
+                if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
+            }
+            if (response.status.value in 200..405) return true
+        } catch (e: Exception) {
+            // Ignore
+        }
+
+        // 3. Try pinging base URL root (e.g. http://192.168.1.50:1234)
+        try {
+            val response = httpClient.get(rootUrl) {
+                if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
+            }
+            if (response.status.value in 200..405) return true
+        } catch (e: Exception) {
+            // Ignore
+        }
+
+        return false
     }
 
     override fun generateChatResponse(messages: List<ChatMessage>): Flow<String> = flow {
@@ -143,7 +185,7 @@ class RemoteModelClient(
                 emit("Error: Received empty response from remote server ($cleanUrl). Please check that a model is currently loaded in LM Studio or Ollama.")
             }
         } catch (e: Exception) {
-            emit("Error connecting to remote model: ${e.localizedMessage ?: "Unknown error"}")
+            emit("Error connecting to remote model ($targetUrl): ${e.localizedMessage ?: "Unknown error"}")
         }
     }.flowOn(Dispatchers.IO)
 

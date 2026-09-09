@@ -30,10 +30,10 @@ class ModelManager @Inject constructor(
                     FallbackModelClient("Remote AI Connection is currently suspended in Settings. Re-enable 'Remote Desktop AI' in the 3-dot menu to connect.")
                 } else {
                     val remote = createRemoteClient()
-                    if (remote != null && remote.isAvailable()) {
+                    if (remote != null && remote.getCleanUrl().isNotBlank()) {
                         remote
                     } else {
-                        FallbackModelClient("Error: Unable to connect to Remote Server Profile.\nPlease check Settings (3-dot menu -> AI Models) to configure a valid Remote Server Profile.")
+                        FallbackModelClient("Error: No valid Remote Server Profile configured.\nPlease open Settings (3-dot menu -> AI Models) to configure a Remote Server Profile.")
                     }
                 }
             }
