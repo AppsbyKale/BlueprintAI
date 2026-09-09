@@ -19,7 +19,7 @@ fun DebugContextDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Debug: Context & Model Payload 🔍") },
+        title = { Text("Debug: Context & Model Payload") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(

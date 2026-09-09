@@ -200,7 +200,7 @@ fun AiModelsDialog(
                 if (downloadProgress.isCompleted) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "✅ Download complete! Saved to Download/AI_Models/",
+                        "Download complete. Saved to Download/AI_Models/",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFF4CAF50)
                     )
@@ -209,7 +209,7 @@ fun AiModelsDialog(
                 if (downloadProgress.error != null) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "❌ Download error: ${downloadProgress.error}",
+                        "Download error: ${downloadProgress.error}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -229,7 +229,7 @@ fun AiModelsDialog(
                 }
                 if (!isRemoteEnabled) {
                     Text(
-                        "⏸️ Remote AI connection is currently suspended.",
+                        "Remote AI connection is currently suspended.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.error
                     )

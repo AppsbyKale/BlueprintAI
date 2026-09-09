@@ -96,7 +96,7 @@ fun MessageBubble(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Debug: Inspect Context & Tokens 🔍") },
+                        text = { Text("Debug: Inspect Context & Tokens") },
                         onClick = {
                             showMenu = false
                             onInspectDebug()
