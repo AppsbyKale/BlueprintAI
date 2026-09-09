@@ -185,7 +185,14 @@ class RemoteModelClient(
                 emit("Error: Received empty response from remote server ($cleanUrl). Please check that a model is currently loaded in LM Studio or Ollama.")
             }
         } catch (e: Exception) {
-            emit("Error connecting to remote model ($targetUrl): ${e.localizedMessage ?: "Unknown error"}")
+            val msg = e.localizedMessage ?: "Unknown error"
+            val tip = if (msg.contains("timeout", ignoreCase = true) || msg.contains("refused", ignoreCase = true) || msg.contains("Host", ignoreCase = true)) {
+                "\n\n💡 Quick Troubleshooting Checklist:\n" +
+                "• On Home Wi-Fi? Check LM Studio -> Server Settings -> Enable 'Serve on Local Network' (0.0.0.0).\n" +
+                "• Windows Firewall? Ensure port (e.g. 1234 / 11434) is allowed in Inbound Firewall Rules on your PC.\n" +
+                "• Away on Mobile Data? Open 3-dot menu in BlueprintAI -> Toggle IP to 'Public (Away)'."
+            } else ""
+            emit("Error connecting to remote model ($targetUrl): $msg$tip")
         }
     }.flowOn(Dispatchers.IO)
 
