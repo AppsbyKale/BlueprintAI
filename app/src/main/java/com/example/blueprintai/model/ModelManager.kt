@@ -22,28 +22,34 @@ class ModelManager @Inject constructor(
 ) {
     suspend fun getActiveClient(): ModelClient {
         val currentSettings = settingsDao.getSettings().first() ?: Settings()
-        logManager.log("INFO", "Model", "Initializing ${currentSettings.modelMode} mode")
+        val normalizedMode = when (currentSettings.modelMode) {
+            "Desktop" -> "Remote"
+            "Phone" -> "Local"
+            else -> currentSettings.modelMode
+        }
 
-        return when (currentSettings.modelMode) {
-            "Desktop" -> {
+        logManager.log("INFO", "Model", "Initializing $normalizedMode mode")
+
+        return when (normalizedMode) {
+            "Remote" -> {
                 val remote = createRemoteClient()
                 if (remote != null && remote.getCleanUrl().isNotBlank()) {
                     remote
                 } else {
-                    logManager.log("INFO", "Model", "No valid Desktop profile, falling back to Local Phone / Gemini model")
+                    logManager.log("INFO", "Model", "No valid Remote profile, falling back to Local model")
                     getLocalFallbackClient()
                 }
             }
-            "Phone" -> {
+            "Local" -> {
                 getLocalFallbackClient()
             }
             "Auto" -> {
                 val remote = createRemoteClient()
                 if (remote != null && remote.isAvailable()) {
-                    logManager.log("INFO", "Model", "Auto mode selected Desktop model profile")
+                    logManager.log("INFO", "Model", "Auto mode selected Remote model profile")
                     remote
                 } else {
-                    logManager.log("INFO", "Model", "Auto mode selected Local Phone / Gemini model")
+                    logManager.log("INFO", "Model", "Auto mode selected Local model")
                     getLocalFallbackClient()
                 }
             }

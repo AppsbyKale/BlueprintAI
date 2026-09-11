@@ -140,9 +140,15 @@ fun MainScreen(
                         SingleChoiceSegmentedButtonRow(
                             modifier = Modifier.padding(end = 16.dp)
                         ) {
-                            listOf("Auto", "Desktop", "Phone").forEachIndexed { index, mode ->
+                            val modes = listOf("Auto", "Remote", "Local")
+                            modes.forEachIndexed { index, mode ->
+                                val isSelected = when (mode) {
+                                    "Remote" -> settings.modelMode == "Remote" || settings.modelMode == "Desktop"
+                                    "Local" -> settings.modelMode == "Local" || settings.modelMode == "Phone"
+                                    else -> settings.modelMode == mode
+                                }
                                 SegmentedButton(
-                                    selected = settings.modelMode == mode,
+                                    selected = isSelected,
                                     onClick = { settingsViewModel.updateModelMode(mode) },
                                     shape = SegmentedButtonDefaults.itemShape(index = index, count = 3),
                                     label = { Text(mode, style = MaterialTheme.typography.labelSmall) }
