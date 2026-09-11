@@ -2,12 +2,16 @@ package com.example.blueprintai.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.blueprintai.data.ArtifactExporter
 import com.example.blueprintai.data.ArtifactRepository
-import com.example.blueprintai.data.ChatRepository
-import com.example.blueprintai.data.Message
+import com.example.blueprintai.domain.repository.IChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.OutputStream
+import java.nio.charset.StandardCharsets
 import javax.inject.Inject
 
 data class ArtifactExportState(
@@ -23,7 +27,8 @@ data class ArtifactExportState(
 @HiltViewModel
 class ArtifactViewModel @Inject constructor(
     private val artifactRepository: ArtifactRepository,
-    private val chatRepository: ChatRepository
+    private val chatRepository: IChatRepository,
+    private val artifactExporter: ArtifactExporter
 ) : ViewModel() {
 
     private val _exportState = MutableStateFlow(ArtifactExportState())
@@ -38,7 +43,6 @@ class ArtifactViewModel @Inject constructor(
             val conceptMap = artifactRepository.generateConceptMap(folderId)
             val prompt = artifactRepository.generatePromptExport(folderId)
             
-            // Get messages for conversation and tasks
             val messages = chatRepository.getMessages(folderId).first()
             val conversation = messages.joinToString("\n\n") { "${it.role.uppercase()}: ${it.content}" }
             
@@ -50,6 +54,23 @@ class ArtifactViewModel @Inject constructor(
                 conversation = conversation,
                 isGenerating = false
             )
+        }
+    }
+
+    suspend fun writeExportToStream(
+        outputStream: OutputStream,
+        selectedOptions: Set<String>,
+        format: String
+    ) = withContext(Dispatchers.IO) {
+        outputStream.use { out ->
+            if (format == "zip") {
+                val zipBytes = artifactExporter.createZipArchive(_exportState.value, selectedOptions)
+                out.write(zipBytes)
+            } else {
+                val documentText = artifactExporter.formatMergedDocument(_exportState.value, selectedOptions)
+                out.write(documentText.toByteArray(StandardCharsets.UTF_8))
+            }
+            out.flush()
         }
     }
 

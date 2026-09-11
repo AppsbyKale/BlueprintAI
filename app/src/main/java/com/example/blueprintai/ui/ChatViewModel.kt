@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.blueprintai.data.*
+import com.example.blueprintai.domain.repository.IChatRepository
+import com.example.blueprintai.domain.repository.IFolderRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -13,8 +15,8 @@ import javax.inject.Inject
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ChatViewModel @Inject constructor(
-    private val repository: ChatRepository,
-    private val folderRepository: FolderRepository,
+    private val repository: IChatRepository,
+    private val folderRepository: IFolderRepository,
     private val attachmentManager: AttachmentManager,
     private val voiceManager: VoiceManager,
     private val settingsDao: SettingsDao
@@ -219,6 +221,7 @@ class ChatViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
-        voiceManager.shutdown()
+        voiceManager.stopSpeaking()
+        voiceManager.stopListening()
     }
 }

@@ -1,8 +1,10 @@
 package com.example.blueprintai.ui
 
+import com.example.blueprintai.R
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -306,7 +308,7 @@ fun ChatInputBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onAttach, colors = IconButtonDefaults.iconButtonColors(contentColor = Color.LightGray)) {
-                Icon(Icons.Default.Add, contentDescription = "Attach")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_attach))
             }
             IconButton(
                 onClick = onMicClick,
@@ -316,7 +318,7 @@ fun ChatInputBar(
             ) {
                 Icon(
                     imageVector = if (isListening) Icons.Default.Mic else Icons.Default.MicOff,
-                    contentDescription = "Voice"
+                    contentDescription = stringResource(R.string.cd_voice)
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
@@ -324,7 +326,7 @@ fun ChatInputBar(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Ask BlueprintAI...", color = Color.Gray) },
+                placeholder = { Text(stringResource(R.string.placeholder_ask_blueprint), color = Color.Gray) },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color(0xFF222222),
                     unfocusedContainerColor = Color(0xFF222222),
@@ -345,7 +347,7 @@ fun ChatInputBar(
                     disabledContentColor = Color.DarkGray
                 )
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.cd_send))
             }
         }
     }

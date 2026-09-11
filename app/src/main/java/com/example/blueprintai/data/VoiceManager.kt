@@ -48,6 +48,9 @@ class VoiceManager @Inject constructor(
     }
 
     fun speak(text: String) {
+        if (tts == null) {
+            tts = TextToSpeech(context, this)
+        }
         if (isTtsReady) {
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
         }

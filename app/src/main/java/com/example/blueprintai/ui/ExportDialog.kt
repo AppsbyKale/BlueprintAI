@@ -11,16 +11,17 @@ import androidx.compose.ui.unit.dp
 fun ExportDialog(
     state: ArtifactExportState,
     onDismiss: () -> Unit,
-    onExport: (Set<String>, String) -> Unit
+    onDownloadFile: (Set<String>, String) -> Unit,
+    onShareText: (Set<String>, String) -> Unit = { _, _ -> }
 ) {
-    var selectedArtifacts by remember { mutableStateOf(setOf<String>()) }
-    var selectedFormat by remember { mutableStateOf("md") }
+    var selectedArtifacts by remember { mutableStateOf(setOf("Report", "Concept Map", "Prompt")) }
+    var selectedFormat by remember { mutableStateOf("zip") }
 
     val options = listOf("Report", "Blueprint", "Concept Map", "Prompt", "Conversation")
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Export & Share") },
+        title = { Text("Export & Download Artifacts") },
         text = {
             if (state.isGenerating) {
                 Column(
@@ -33,6 +34,12 @@ fun ExportDialog(
                 }
             } else {
                 Column {
+                    Text(
+                        "Select artifacts to export:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
                     options.forEach { option ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -49,15 +56,15 @@ fun ExportDialog(
                     }
                     
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Format", style = MaterialTheme.typography.labelLarge)
+                    Text("Export Format", style = MaterialTheme.typography.labelLarge)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        listOf("md", "txt", "zip").forEach { format ->
+                        listOf("zip", "md", "txt").forEach { format ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 RadioButton(
                                     selected = selectedFormat == format,
                                     onClick = { selectedFormat = format }
                                 )
-                                Text(format)
+                                Text(format.uppercase())
                             }
                         }
                     }
@@ -65,11 +72,19 @@ fun ExportDialog(
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = { onExport(selectedArtifacts, selectedFormat) },
-                enabled = !state.isGenerating && selectedArtifacts.isNotEmpty()
-            ) {
-                Text("Export")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { onShareText(selectedArtifacts, selectedFormat) },
+                    enabled = !state.isGenerating && selectedArtifacts.isNotEmpty()
+                ) {
+                    Text("Share Text")
+                }
+                Button(
+                    onClick = { onDownloadFile(selectedArtifacts, selectedFormat) },
+                    enabled = !state.isGenerating && selectedArtifacts.isNotEmpty()
+                ) {
+                    Text("Download File")
+                }
             }
         },
         dismissButton = {

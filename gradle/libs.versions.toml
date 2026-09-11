@@ -21,6 +21,10 @@ coil = "2.7.0"
 mlkit-text-recognition = "16.0.1"
 pdfbox-android = "2.0.27.0"
 mediapipe-tasks-genai = "0.10.14"
+securityCrypto = "1.1.0-alpha06"
+kotlinxCoroutinesTest = "1.9.0"
+turbine = "1.2.0"
+mockk = "1.13.13"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -72,6 +76,14 @@ pdfbox-android = { group = "com.tom-roush", name = "pdfbox-android", version.ref
 
 # Markdown
 compose-markdown = { group = "com.github.jeziellago", name = "compose-markdown", version = "0.7.0" }
+
+# Security & Testing
+androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+mockk-android = { group = "io.mockk", name = "mockk-android", version.ref = "mockk" }
+ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref = "ktor" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

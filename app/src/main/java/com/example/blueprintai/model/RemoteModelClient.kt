@@ -11,72 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-
-@Serializable
-data class ChatRequest(
-    val model: String = "local-model",
-    val messages: List<ChatMessage>,
-    val stream: Boolean = true
-)
-
-@Serializable
-data class ChatMessage(
-    val role: String,
-    val content: String
-)
-
-@Serializable
-data class ChatChunk(
-    val choices: List<ChoiceChunk>? = null,
-    val content: String? = null
-)
-
-@Serializable
-data class ChoiceChunk(
-    val delta: DeltaChunk? = null,
-    val message: DeltaChunk? = null,
-    val text: String? = null
-) {
-    fun extractContent(): String? {
-        val main = delta?.content 
-            ?: delta?.text 
-            ?: message?.content 
-            ?: message?.text 
-            ?: text
-        if (!main.isNullOrEmpty()) return main
-
-        val reasoning = delta?.reasoning_content 
-            ?: delta?.reasoning 
-            ?: message?.reasoning_content 
-            ?: message?.reasoning
-        return reasoning
-    }
-}
-
-@Serializable
-data class DeltaChunk(
-    val content: String? = null,
-    val text: String? = null,
-    val reasoning_content: String? = null,
-    val reasoning: String? = null
-)
-
-@Serializable
-data class ModelInfo(
-    val id: String? = null,
-    val name: String? = null,
-    val context_length: Int? = null,
-    val max_model_len: Int? = null,
-    val context_window: Int? = null
-)
-
-@Serializable
-data class ModelsListResponse(
-    val data: List<ModelInfo>? = null,
-    val models: List<ModelInfo>? = null
-)
 
 class RemoteModelClient(
     val targetUrl: String,
@@ -88,8 +23,13 @@ class RemoteModelClient(
     private val json = Json { ignoreUnknownKeys = true }
 
     fun getCleanUrl(): String {
-        val trimmed = targetUrl.trim().trimEnd('/')
+        var trimmed = targetUrl.trim().trimEnd('/')
         if (trimmed.isEmpty()) return ""
+
+        trimmed = trimmed.removeSuffix("/chat/completions")
+            .removeSuffix("/models")
+            .trimEnd('/')
+
         var url = if (!trimmed.startsWith("http://", ignoreCase = true) && !trimmed.startsWith("https://", ignoreCase = true)) {
             "http://$trimmed"
         } else {
@@ -152,6 +92,16 @@ class RemoteModelClient(
                         messages = messages
                     )
                 )
+            }
+
+            if (response.status.value !in 200..299) {
+                val errorBody = response.bodyAsText().trim()
+                val tip = "\n\n💡 Checklist to Fix Desktop Connections:\n" +
+                    "1. LM Studio -> Ensure an AI model is currently loaded in memory.\n" +
+                    "2. LM Studio -> Developer / Server Settings -> Enable 'Serve on Local Network' (0.0.0.0).\n" +
+                    "3. Windows Firewall -> Allow port 1234 in Inbound Firewall Rules on your PC."
+                emit("Error from remote server ($cleanUrl) [HTTP ${response.status.value}]:\n$errorBody$tip")
+                return@flow
             }
 
             val channel: ByteReadChannel = response.bodyAsChannel()

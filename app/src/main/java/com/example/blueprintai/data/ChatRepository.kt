@@ -1,5 +1,6 @@
 package com.example.blueprintai.data
 
+import com.example.blueprintai.domain.repository.IChatRepository
 import com.example.blueprintai.model.ChatMessage
 import com.example.blueprintai.model.ModelManager
 import com.example.blueprintai.model.ToolInterceptor
@@ -21,26 +22,26 @@ class ChatRepository @Inject constructor(
     private val settingsDao: SettingsDao,
     private val modelManager: ModelManager,
     private val toolInterceptor: ToolInterceptor
-) {
+) : IChatRepository {
     // Cache for older conversation summaries per folder: folderId -> Pair(Pair(olderMsgCount, starredCount), summaryText)
     private val folderSummaries = ConcurrentHashMap<Long, Pair<Pair<Int, Int>, String>>()
 
     // Debug context info tracking
     private val _currentDebugInfo = MutableStateFlow<DebugContextInfo?>(null)
-    val currentDebugInfo: StateFlow<DebugContextInfo?> = _currentDebugInfo.asStateFlow()
+    override val currentDebugInfo: StateFlow<DebugContextInfo?> = _currentDebugInfo.asStateFlow()
 
     private val messageDebugMap = ConcurrentHashMap<Long, DebugContextInfo>()
 
-    fun getDebugInfoForMessage(messageId: Long): DebugContextInfo? = messageDebugMap[messageId]
+    override fun getDebugInfoForMessage(messageId: Long): DebugContextInfo? = messageDebugMap[messageId]
 
-    fun getMessages(folderId: Long): Flow<List<Message>> = messageDao.getMessagesByFolder(folderId)
+    override fun getMessages(folderId: Long): Flow<List<Message>> = messageDao.getMessagesByFolder(folderId)
 
-    fun searchMessages(query: String): Flow<List<Message>> = messageDao.searchMessages(query)
+    override fun searchMessages(query: String): Flow<List<Message>> = messageDao.searchMessages(query)
 
-    fun searchMessagesInFolder(folderId: Long, query: String): Flow<List<Message>> = 
+    override fun searchMessagesInFolder(folderId: Long, query: String): Flow<List<Message>> = 
         messageDao.searchMessagesInFolder(folderId, query)
 
-    suspend fun sendMessage(folderId: Long, content: String): Flow<String> = flow {
+    override suspend fun sendMessage(folderId: Long, content: String): Flow<String> = flow {
         // Save user message
         val userMessage = Message(folderId = folderId, content = content, role = "user")
         messageDao.insertMessage(userMessage)
@@ -81,7 +82,10 @@ class ChatRepository @Inject constructor(
             }
 
             val responseText = fullResponse.toString().trim()
-            if (responseText.startsWith("{") && responseText.endsWith("}")) {
+            if (responseText.startsWith("Error", ignoreCase = true)) {
+                // Do not save error messages to DB as valid assistant turns
+                loop = false
+            } else if (responseText.startsWith("{") && responseText.endsWith("}")) {
                 // Potential tool call
                 val toolResult = toolInterceptor.intercept(responseText)
                 emit("\n[Tool Result: $toolResult]\n")
@@ -98,19 +102,20 @@ class ChatRepository @Inject constructor(
     }
 
     private suspend fun buildCompressedChatHistory(folderId: Long, allMessages: List<Message>, maxCapacity: Int): List<ChatMessage> {
+        val cleanMessages = allMessages.filter { !it.content.trim().startsWith("Error", ignoreCase = true) }
         val windowSize = 20
         val compressionThresholdTokens = (maxCapacity * 0.60f).toInt().coerceAtLeast(1200)
-        val totalRawTokens = allMessages.sumOf { (it.content.length / 4).coerceAtLeast(1) }
+        val totalRawTokens = cleanMessages.sumOf { (it.content.length / 4).coerceAtLeast(1) }
 
-        if (allMessages.size <= windowSize && totalRawTokens <= compressionThresholdTokens) {
+        if (cleanMessages.size <= windowSize && totalRawTokens <= compressionThresholdTokens) {
             // Under 20 messages & under 60% capacity threshold: send all verbatim
-            return allMessages.map { ChatMessage(role = it.role, content = it.content) }
+            return cleanMessages.map { ChatMessage(role = it.role, content = it.content) }
         }
 
         // Over 20 messages or over 60% capacity threshold: split into older history and recent verbatim messages
-        val olderMessages = allMessages.dropLast(windowSize)
-        val recentMessages = allMessages.takeLast(windowSize)
-        val starredMessages = allMessages.filter { it.isKeyDecision }
+        val olderMessages = cleanMessages.dropLast(windowSize)
+        val recentMessages = cleanMessages.takeLast(windowSize)
+        val starredMessages = cleanMessages.filter { it.isKeyDecision }
 
         val cacheKey = Pair(olderMessages.size, starredMessages.size)
         val cachedSummary = folderSummaries[folderId]
@@ -160,11 +165,11 @@ class ChatRepository @Inject constructor(
         }
     }
 
-    suspend fun updateMessageMetadata(messageId: Long, isKey: Boolean, tags: String) {
+    override suspend fun updateMessageMetadata(messageId: Long, isKey: Boolean, tags: String) {
         messageDao.updateMessageMetadata(messageId, isKey, tags)
     }
 
-    suspend fun explainConcepts(messageContent: String): String {
+    override suspend fun explainConcepts(messageContent: String): String {
         val prompt = """
             Analyze the following text/code snippet and explain it for a beginner software builder (a visual learner).
             
@@ -208,17 +213,17 @@ class ChatRepository @Inject constructor(
         }
     }
 
-    fun getAttachmentsForMessage(messageId: Long): Flow<List<Attachment>> = 
+    override fun getAttachmentsForMessage(messageId: Long): Flow<List<Attachment>> = 
         attachmentDao.getAttachmentsForMessage(messageId)
 
-    fun getAttachmentsForFolder(folderId: Long): Flow<List<Attachment>> = 
+    override fun getAttachmentsForFolder(folderId: Long): Flow<List<Attachment>> = 
         attachmentDao.getAttachmentsForFolder(folderId)
 
-    suspend fun addAttachment(attachment: Attachment) {
+    override suspend fun addAttachment(attachment: Attachment) {
         attachmentDao.insertAttachment(attachment)
     }
 
-    suspend fun generateSuggestedName(originalName: String, extractedText: String?): String {
+    override suspend fun generateSuggestedName(originalName: String, extractedText: String?): String {
         return try {
             val client = modelManager.getActiveClient()
             val prompt = """

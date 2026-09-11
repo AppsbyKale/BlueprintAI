@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 class LiteRtModelClient(
@@ -17,12 +19,13 @@ class LiteRtModelClient(
 ) : ModelClient {
 
     @Volatile private var engine: Engine? = null
+    private val mutex = Mutex()
 
     @OptIn(ExperimentalApi::class)
     private suspend fun getOrInitEngine(): Engine = withContext(Dispatchers.Default) {
         engine?.let { return@withContext it }
-        synchronized(this@LiteRtModelClient) {
-            engine?.let { return@synchronized it }
+        mutex.withLock {
+            engine?.let { return@withLock it }
             
             ExperimentalFlags.enableSpeculativeDecoding = true
             val file = File(modelPath)

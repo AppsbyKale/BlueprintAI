@@ -3,8 +3,11 @@ package com.example.blueprintai.model
 import android.content.Context
 import com.example.blueprintai.data.LogManager
 import com.example.blueprintai.data.RemoteModelProfileDao
+import com.example.blueprintai.data.SecureStorage
 import com.example.blueprintai.data.Settings
 import com.example.blueprintai.data.SettingsDao
+import com.example.blueprintai.domain.model.IpMode
+import com.example.blueprintai.domain.model.ModelMode
 import io.ktor.client.*
 import kotlinx.coroutines.flow.first
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -17,21 +20,18 @@ class ModelManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val settingsDao: SettingsDao,
     private val remoteModelProfileDao: RemoteModelProfileDao,
+    private val secureStorage: SecureStorage,
     private val httpClient: HttpClient,
     private val logManager: LogManager
 ) {
     suspend fun getActiveClient(): ModelClient {
         val currentSettings = settingsDao.getSettings().first() ?: Settings()
-        val normalizedMode = when (currentSettings.modelMode) {
-            "Desktop" -> "Remote"
-            "Phone" -> "Local"
-            else -> currentSettings.modelMode
-        }
+        val mode = ModelMode.fromKey(currentSettings.modelMode)
 
-        logManager.log("INFO", "Model", "Initializing $normalizedMode mode")
+        logManager.log("INFO", "Model", "Initializing ${mode.key} mode")
 
-        return when (normalizedMode) {
-            "Remote" -> {
+        return when (mode) {
+            ModelMode.REMOTE -> {
                 val remote = createRemoteClient()
                 if (remote != null && remote.getCleanUrl().isNotBlank()) {
                     remote
@@ -40,10 +40,10 @@ class ModelManager @Inject constructor(
                     getLocalFallbackClient()
                 }
             }
-            "Local" -> {
+            ModelMode.LOCAL -> {
                 getLocalFallbackClient()
             }
-            "Auto" -> {
+            ModelMode.AUTO -> {
                 val remote = createRemoteClient()
                 if (remote != null && remote.isAvailable()) {
                     logManager.log("INFO", "Model", "Auto mode selected Remote model profile")
@@ -52,9 +52,6 @@ class ModelManager @Inject constructor(
                     logManager.log("INFO", "Model", "Auto mode selected Local model")
                     getLocalFallbackClient()
                 }
-            }
-            else -> {
-                getLocalFallbackClient()
             }
         }
     }
@@ -66,18 +63,22 @@ class ModelManager @Inject constructor(
             }
 
         return if (activeProfile != null) {
-            val selectedUrl = if (activeProfile.activeIpMode == "PUBLIC" && activeProfile.publicIpUrl.isNotBlank()) {
+            val ipMode = IpMode.fromKey(activeProfile.activeIpMode)
+            val selectedUrl = if (ipMode == IpMode.PUBLIC && activeProfile.publicIpUrl.isNotBlank()) {
                 activeProfile.publicIpUrl
             } else {
                 activeProfile.localIpUrl
             }
+
+            val apiKey = secureStorage.getString(SecureStorage.profileApiKey(activeProfile.id))
+                .ifBlank { activeProfile.apiKey }
 
             logManager.log("INFO", "Model", "Using active profile '${activeProfile.label}' with ${activeProfile.activeIpMode} IP ($selectedUrl)")
 
             RemoteModelClient(
                 targetUrl = selectedUrl,
                 selectedModel = activeProfile.modelName,
-                apiKey = activeProfile.apiKey,
+                apiKey = apiKey,
                 httpClient = httpClient
             )
         } else {
@@ -87,12 +88,15 @@ class ModelManager @Inject constructor(
 
     suspend fun getLocalFallbackClient(): ModelClient {
         val currentSettings = settingsDao.getSettings().first() ?: Settings()
+        val geminiApiKey = secureStorage.getString(SecureStorage.KEY_GEMINI_API_KEY)
+            .ifBlank { currentSettings.geminiApiKey }
+
         return if (currentSettings.localModelPath.isNotBlank() && File(currentSettings.localModelPath).exists()) {
             logManager.log("INFO", "Model", "Using Local LiteRT model")
             LiteRtModelClient(context, currentSettings.localModelPath)
-        } else if (currentSettings.geminiApiKey.isNotBlank()) {
+        } else if (geminiApiKey.isNotBlank()) {
             logManager.log("INFO", "Model", "Using Gemini API")
-            GeminiModelClient(currentSettings.geminiApiKey, httpClient)
+            GeminiModelClient(geminiApiKey, httpClient)
         } else {
             FallbackModelClient("No local model (.litertlm) file or Gemini API key configured. Please open Settings (3-dot menu -> AI Models) to download Gemma 4-E2B or enter a Gemini API key.")
         }

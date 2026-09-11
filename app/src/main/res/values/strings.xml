@@ -1,3 +1,20 @@
 <resources>
     <string name="app_name">BlueprintAI</string>
+    <string name="cd_menu">Menu</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_voice">Voice input</string>
+    <string name="cd_send">Send message</string>
+    <string name="cd_attach">Attach file</string>
+    <string name="cd_edit_profile">Edit Profile</string>
+    <string name="cd_delete_profile">Delete Profile</string>
+    <string name="title_ai_models">AI Models</string>
+    <string name="title_backup_restore">Backup &amp; Restore</string>
+    <string name="title_view_logs">View Logs</string>
+    <string name="title_audio_readback">Audio Readback</string>
+    <string name="placeholder_ask_blueprint">Ask BlueprintAI...</string>
+    <string name="text_attachments">Attachments</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_save">Save</string>
+    <string name="btn_clear">Clear</string>
+    <string name="btn_close">Close</string>
 </resources>

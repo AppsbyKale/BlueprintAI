@@ -7,6 +7,7 @@ import com.example.blueprintai.data.LogManager
 import com.example.blueprintai.data.ModelDownloader
 import com.example.blueprintai.data.RemoteModelProfile
 import com.example.blueprintai.data.RemoteModelProfileDao
+import com.example.blueprintai.data.SecureStorage
 import com.example.blueprintai.data.Settings
 import com.example.blueprintai.data.SettingsDao
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,6 +22,7 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val settingsDao: SettingsDao,
     private val remoteModelProfileDao: RemoteModelProfileDao,
+    private val secureStorage: SecureStorage,
     private val backupManager: BackupManager,
     private val logManager: LogManager,
     private val modelDownloader: ModelDownloader,
@@ -28,10 +30,20 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     val settings: StateFlow<Settings> = settingsDao.getSettings()
-        .map { it ?: Settings() }
+        .map { s ->
+            val cur = s ?: Settings()
+            val secureKey = secureStorage.getString(SecureStorage.KEY_GEMINI_API_KEY)
+            if (secureKey.isNotBlank()) cur.copy(geminiApiKey = secureKey) else cur
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), Settings())
 
     val remoteProfiles: StateFlow<List<RemoteModelProfile>> = remoteModelProfileDao.getAllProfiles()
+        .map { list ->
+            list.map { profile ->
+                val secureKey = secureStorage.getString(SecureStorage.profileApiKey(profile.id))
+                if (secureKey.isNotBlank()) profile.copy(apiKey = secureKey) else profile
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val downloadProgress = modelDownloader.downloadProgress
@@ -70,11 +82,15 @@ class SettingsViewModel @Inject constructor(
             val current = settings.value
             val cleanUrl = if (desktopUrl.isNotBlank()) cleanDesktopUrl(desktopUrl) else current.desktopUrl
             
+            if (geminiKey.isNotBlank()) {
+                secureStorage.putString(SecureStorage.KEY_GEMINI_API_KEY, geminiKey)
+            }
+
             settingsDao.saveSettings(
                 current.copy(
                     localModelPath = localPath,
                     desktopUrl = cleanUrl,
-                    geminiApiKey = geminiKey
+                    geminiApiKey = ""
                 )
             )
 
@@ -112,10 +128,13 @@ class SettingsViewModel @Inject constructor(
                 localIpUrl = cleanLocal,
                 publicIpUrl = cleanPublic,
                 modelName = modelName.trim(),
-                apiKey = apiKey,
+                apiKey = "",
                 isActive = true
             )
-            remoteModelProfileDao.insertProfile(profile)
+            val insertedId = remoteModelProfileDao.insertProfile(profile)
+            if (apiKey.isNotBlank()) {
+                secureStorage.putString(SecureStorage.profileApiKey(insertedId), apiKey)
+            }
             
             // Sync with settings desktopUrl
             val current = settings.value
@@ -127,9 +146,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val cleanLocal = cleanDesktopUrl(profile.localIpUrl)
             val cleanPublic = if (profile.publicIpUrl.isNotBlank()) cleanDesktopUrl(profile.publicIpUrl) else ""
+            if (profile.apiKey.isNotBlank()) {
+                secureStorage.putString(SecureStorage.profileApiKey(profile.id), profile.apiKey)
+            }
             val updated = profile.copy(
                 localIpUrl = cleanLocal,
-                publicIpUrl = cleanPublic
+                publicIpUrl = cleanPublic,
+                apiKey = ""
             )
             remoteModelProfileDao.updateProfile(updated)
 

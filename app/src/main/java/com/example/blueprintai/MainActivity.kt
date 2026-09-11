@@ -1,43 +1,31 @@
 package com.example.blueprintai
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.Color
-import com.example.blueprintai.ui.ChatScreen
-import com.example.blueprintai.ui.ChatViewModel
-import com.example.blueprintai.ui.SidebarContent
-import com.example.blueprintai.ui.SettingsViewModel
-import com.example.blueprintai.ui.ArtifactViewModel
-import com.example.blueprintai.ui.ExportDialog
+import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.example.blueprintai.ui.*
 import com.example.blueprintai.ui.theme.BlueprintAITheme
 import dagger.hilt.android.AndroidEntryPoint
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import kotlinx.coroutines.launch
-import androidx.compose.material.icons.filled.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import com.example.blueprintai.ui.*
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
-import androidx.compose.ui.unit.dp
 import java.io.File
-import java.io.FileOutputStream
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -101,6 +89,22 @@ fun MainScreen(
                     tempFile.outputStream().use { output -> input.copyTo(output) }
                 }
                 settingsViewModel.restoreBackup(tempFile)
+            }
+        }
+    )
+
+    var pendingExportOptions by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var pendingExportFormat by remember { mutableStateOf("zip") }
+
+    val exportArtifactsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("*/*"),
+        onResult = { uri ->
+            uri?.let {
+                scope.launch {
+                    context.contentResolver.openOutputStream(it)?.use { out ->
+                        artifactViewModel.writeExportToStream(out, pendingExportOptions, pendingExportFormat)
+                    }
+                }
             }
         }
     )
@@ -251,7 +255,16 @@ fun MainScreen(
                 showExportDialog = false
                 artifactViewModel.clearState()
             },
-            onExport = { selected, format ->
+            onDownloadFile = { selected, format ->
+                pendingExportOptions = selected
+                pendingExportFormat = format
+                val filename = if (format == "zip") "blueprint_artifacts_${System.currentTimeMillis()}.zip"
+                else if (format == "md") "blueprint_artifacts_${System.currentTimeMillis()}.md"
+                else "blueprint_artifacts_${System.currentTimeMillis()}.txt"
+                exportArtifactsLauncher.launch(filename)
+                showExportDialog = false
+            },
+            onShareText = { selected, format ->
                 val textToShare = StringBuilder()
                 if (selected.contains("Report")) textToShare.append("# Report\n${exportState.report}\n\n")
                 if (selected.contains("Blueprint")) textToShare.append("# Blueprint\n${exportState.blueprint}\n\n")
@@ -259,11 +272,11 @@ fun MainScreen(
                 if (selected.contains("Prompt")) textToShare.append("# Prompt\n${exportState.prompt}\n\n")
                 if (selected.contains("Conversation")) textToShare.append("# Conversation\n${exportState.conversation}\n\n")
                 
-                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                val intent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
-                    putExtra(android.content.Intent.EXTRA_TEXT, textToShare.toString())
+                    putExtra(Intent.EXTRA_TEXT, textToShare.toString())
                 }
-                context.startActivity(android.content.Intent.createChooser(intent, "Share Artifacts"))
+                context.startActivity(Intent.createChooser(intent, "Share Artifacts"))
                 showExportDialog = false
             }
         )
