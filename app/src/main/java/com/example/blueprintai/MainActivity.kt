@@ -188,21 +188,8 @@ fun MainScreen(
                                     }
                                 )
                                 HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { 
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Remote Desktop AI")
-                                            Spacer(Modifier.weight(1f))
-                                            Switch(
-                                                checked = settings.isRemoteEnabled,
-                                                onCheckedChange = { settingsViewModel.toggleRemoteEnabled(it) }
-                                            )
-                                        }
-                                    },
-                                    onClick = { settingsViewModel.toggleRemoteEnabled(!settings.isRemoteEnabled) }
-                                )
                                 remoteProfiles.find { it.isActive }?.let { activeProfile ->
-                                    if (settings.isRemoteEnabled && activeProfile.publicIpUrl.isNotBlank()) {
+                                    if (activeProfile.publicIpUrl.isNotBlank()) {
                                         DropdownMenuItem(
                                             text = { 
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -312,8 +299,8 @@ fun MainScreen(
             remoteProfiles = remoteProfiles,
             downloadProgress = downloadProgress,
             onDismiss = { showAiModelsDialog = false },
-            onSaveSettings = { localPath, desktopUrl, geminiKey, isRemoteEnabled ->
-                settingsViewModel.saveAiModelSettings(localPath, desktopUrl, geminiKey, isRemoteEnabled)
+            onSaveSettings = { localPath, desktopUrl, geminiKey ->
+                settingsViewModel.saveAiModelSettings(localPath, desktopUrl, geminiKey)
             },
             onRequestPermission = {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {

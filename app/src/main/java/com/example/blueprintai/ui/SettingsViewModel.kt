@@ -62,14 +62,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun toggleRemoteEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            val current = settings.value
-            settingsDao.saveSettings(current.copy(isRemoteEnabled = enabled))
-        }
-    }
-
-    fun saveAiModelSettings(localPath: String, desktopUrl: String, geminiKey: String, isRemoteEnabled: Boolean) {
+    fun saveAiModelSettings(localPath: String, desktopUrl: String, geminiKey: String) {
         viewModelScope.launch {
             val current = settings.value
             val cleanUrl = if (desktopUrl.isNotBlank()) cleanDesktopUrl(desktopUrl) else current.desktopUrl
@@ -78,8 +71,7 @@ class SettingsViewModel @Inject constructor(
                 current.copy(
                     localModelPath = localPath,
                     desktopUrl = cleanUrl,
-                    geminiApiKey = geminiKey,
-                    isRemoteEnabled = isRemoteEnabled
+                    geminiApiKey = geminiKey
                 )
             )
 

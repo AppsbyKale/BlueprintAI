@@ -145,7 +145,7 @@ fun AiModelsDialog(
     remoteProfiles: List<RemoteModelProfile> = emptyList(),
     downloadProgress: DownloadProgress = DownloadProgress(),
     onDismiss: () -> Unit,
-    onSaveSettings: (localPath: String, desktopUrl: String, geminiKey: String, isRemoteEnabled: Boolean) -> Unit,
+    onSaveSettings: (localPath: String, desktopUrl: String, geminiKey: String) -> Unit,
     onRequestPermission: () -> Unit,
     onStartDownload: (String) -> Unit,
     onAddProfile: (label: String, localIp: String, publicIp: String, apiKey: String) -> Unit = { _, _, _, _ -> },
@@ -158,14 +158,13 @@ fun AiModelsDialog(
     var localPath by remember(settings.localModelPath) { mutableStateOf(settings.localModelPath) }
     var desktopUrl by remember(activeProfile?.localIpUrl, settings.desktopUrl) { mutableStateOf(activeProfile?.localIpUrl ?: settings.desktopUrl) }
     var geminiKey by remember(settings.geminiApiKey) { mutableStateOf(settings.geminiApiKey) }
-    var isRemoteEnabled by remember(settings.isRemoteEnabled) { mutableStateOf(settings.isRemoteEnabled) }
     var showAddProfileDialog by remember { mutableStateOf(false) }
     var profileToEdit by remember { mutableStateOf<RemoteModelProfile?>(null) }
 
     LaunchedEffect(downloadProgress.isCompleted) {
         if (downloadProgress.isCompleted) {
             localPath = "/storage/emulated/0/Download/AI_Models/gemma-4-E2B-it.litertlm"
-            onSaveSettings(localPath, desktopUrl, geminiKey, isRemoteEnabled)
+            onSaveSettings(localPath, desktopUrl, geminiKey)
         }
     }
 
@@ -243,24 +242,7 @@ fun AiModelsDialog(
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Desktop OpenAI-compatible", style = MaterialTheme.typography.titleSmall)
-                    Switch(
-                        checked = isRemoteEnabled,
-                        onCheckedChange = { isRemoteEnabled = it }
-                    )
-                }
-                if (!isRemoteEnabled) {
-                    Text(
-                        "Remote AI connection is currently suspended.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+                Text("Desktop Server Profiles", style = MaterialTheme.typography.titleSmall)
 
                 if (remoteProfiles.isNotEmpty()) {
                     Text(
@@ -385,7 +367,7 @@ fun AiModelsDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                onSaveSettings(localPath, cleanDesktopUrl(desktopUrl), geminiKey, isRemoteEnabled)
+                onSaveSettings(localPath, cleanDesktopUrl(desktopUrl), geminiKey)
                 onDismiss()
             }) {
                 Text("Save")

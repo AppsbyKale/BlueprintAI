@@ -22,34 +22,30 @@ class ModelManager @Inject constructor(
 ) {
     suspend fun getActiveClient(): ModelClient {
         val currentSettings = settingsDao.getSettings().first() ?: Settings()
-        logManager.log("INFO", "Model", "Initializing ${currentSettings.modelMode} mode (Remote Enabled: ${currentSettings.isRemoteEnabled})")
+        logManager.log("INFO", "Model", "Initializing ${currentSettings.modelMode} mode")
 
         return when (currentSettings.modelMode) {
             "Desktop" -> {
-                if (!currentSettings.isRemoteEnabled) {
-                    FallbackModelClient("Remote AI Connection is currently suspended in Settings. Re-enable 'Remote Desktop AI' in the 3-dot menu to connect.")
+                val remote = createRemoteClient()
+                if (remote != null && remote.getCleanUrl().isNotBlank()) {
+                    remote
                 } else {
-                    val remote = createRemoteClient()
-                    if (remote != null && remote.getCleanUrl().isNotBlank()) {
-                        remote
-                    } else {
-                        FallbackModelClient("Error: No valid Remote Server Profile configured.\nPlease open Settings (3-dot menu -> AI Models) to configure a Remote Server Profile.")
-                    }
+                    logManager.log("INFO", "Model", "No valid Desktop profile, falling back to Local Phone / Gemini model")
+                    getLocalFallbackClient()
                 }
             }
             "Phone" -> {
                 getLocalFallbackClient()
             }
             "Auto" -> {
-                if (currentSettings.isRemoteEnabled) {
-                    val remote = createRemoteClient()
-                    if (remote != null && remote.isAvailable()) {
-                        logManager.log("INFO", "Model", "Auto mode selected Desktop model profile")
-                        return remote
-                    }
+                val remote = createRemoteClient()
+                if (remote != null && remote.isAvailable()) {
+                    logManager.log("INFO", "Model", "Auto mode selected Desktop model profile")
+                    remote
+                } else {
+                    logManager.log("INFO", "Model", "Auto mode selected Local Phone / Gemini model")
+                    getLocalFallbackClient()
                 }
-                
-                getLocalFallbackClient()
             }
             else -> {
                 getLocalFallbackClient()
@@ -85,13 +81,13 @@ class ModelManager @Inject constructor(
     suspend fun getLocalFallbackClient(): ModelClient {
         val currentSettings = settingsDao.getSettings().first() ?: Settings()
         return if (currentSettings.localModelPath.isNotBlank() && File(currentSettings.localModelPath).exists()) {
-            logManager.log("INFO", "Model", "Using Local LiteRT model fallback")
+            logManager.log("INFO", "Model", "Using Local LiteRT model")
             LiteRtModelClient(context, currentSettings.localModelPath)
         } else if (currentSettings.geminiApiKey.isNotBlank()) {
-            logManager.log("INFO", "Model", "Using Gemini API fallback")
+            logManager.log("INFO", "Model", "Using Gemini API")
             GeminiModelClient(currentSettings.geminiApiKey, httpClient)
         } else {
-            FallbackModelClient("No local model or Gemini API Key configured for fallback.")
+            FallbackModelClient("No local model (.litertlm) file or Gemini API key configured. Please open Settings (3-dot menu -> AI Models) to download Gemma 4-E2B or enter a Gemini API key.")
         }
     }
 }
