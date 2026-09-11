@@ -29,7 +29,8 @@ data class ChatMessage(
 
 @Serializable
 data class ChatChunk(
-    val choices: List<ChoiceChunk>? = null
+    val choices: List<ChoiceChunk>? = null,
+    val content: String? = null
 )
 
 @Serializable
@@ -39,14 +40,27 @@ data class ChoiceChunk(
     val text: String? = null
 ) {
     fun extractContent(): String? {
-        return delta?.content ?: delta?.text ?: message?.content ?: message?.text ?: text
+        val main = delta?.content 
+            ?: delta?.text 
+            ?: message?.content 
+            ?: message?.text 
+            ?: text
+        if (!main.isNullOrEmpty()) return main
+
+        val reasoning = delta?.reasoning_content 
+            ?: delta?.reasoning 
+            ?: message?.reasoning_content 
+            ?: message?.reasoning
+        return reasoning
     }
 }
 
 @Serializable
 data class DeltaChunk(
     val content: String? = null,
-    val text: String? = null
+    val text: String? = null,
+    val reasoning_content: String? = null,
+    val reasoning: String? = null
 )
 
 @Serializable
@@ -163,21 +177,50 @@ class RemoteModelClient(
                     } catch (e: Exception) {
                         // Ignore intermediate JSON parse errors for SSE lines
                     }
-                }
-            }
-
-            if (!emittedAnyText) {
-                val fullRaw = rawBuffer.toString().trim()
-                if (fullRaw.isNotEmpty()) {
+                } else if (line.startsWith("{") && line.endsWith("}")) {
                     try {
-                        val fullChunk = json.decodeFromString<ChatChunk>(fullRaw)
-                        val text = fullChunk.choices?.firstOrNull()?.extractContent()
+                        val chunk = json.decodeFromString<ChatChunk>(line)
+                        val text = chunk.choices?.firstOrNull()?.extractContent()
                         if (!text.isNullOrEmpty()) {
                             emit(text)
                             emittedAnyText = true
                         }
                     } catch (e: Exception) {
                         // Ignore
+                    }
+                }
+            }
+
+            if (!emittedAnyText) {
+                val fullRaw = rawBuffer.toString().trim()
+                if (fullRaw.isNotEmpty()) {
+                    for (rawLine in fullRaw.lines()) {
+                        val cleanLine = rawLine.removePrefix("data:").trim()
+                        if (cleanLine.isNotBlank() && cleanLine != "[DONE]") {
+                            try {
+                                val chunk = json.decodeFromString<ChatChunk>(cleanLine)
+                                val text = chunk.choices?.firstOrNull()?.extractContent()
+                                if (!text.isNullOrEmpty()) {
+                                    emit(text)
+                                    emittedAnyText = true
+                                }
+                            } catch (e: Exception) {
+                                // Ignore
+                            }
+                        }
+                    }
+
+                    if (!emittedAnyText) {
+                        try {
+                            val fullChunk = json.decodeFromString<ChatChunk>(fullRaw)
+                            val text = fullChunk.choices?.firstOrNull()?.extractContent()
+                            if (!text.isNullOrEmpty()) {
+                                emit(text)
+                                emittedAnyText = true
+                            }
+                        } catch (e: Exception) {
+                            // Ignore
+                        }
                     }
                 }
             }
