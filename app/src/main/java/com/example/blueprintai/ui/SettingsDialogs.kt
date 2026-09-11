@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.example.blueprintai.data.DiagnosticLog
 import com.example.blueprintai.data.DownloadProgress
 import com.example.blueprintai.data.RemoteModelProfile
@@ -148,11 +149,12 @@ fun AiModelsDialog(
     onSaveSettings: (localPath: String, desktopUrl: String, geminiKey: String) -> Unit,
     onRequestPermission: () -> Unit,
     onStartDownload: (String) -> Unit,
-    onAddProfile: (label: String, localIp: String, publicIp: String, apiKey: String) -> Unit = { _, _, _, _ -> },
+    onAddProfile: (label: String, localIp: String, publicIp: String, modelName: String, apiKey: String) -> Unit = { _, _, _, _, _ -> },
     onUpdateProfile: (RemoteModelProfile) -> Unit = {},
     onSelectProfile: (Long) -> Unit = {},
     onSetProfileIpMode: (Long, String) -> Unit = { _, _ -> },
-    onDeleteProfile: (RemoteModelProfile) -> Unit = {}
+    onDeleteProfile: (RemoteModelProfile) -> Unit = {},
+    onFetchModels: suspend (url: String, apiKey: String) -> List<String> = { _, _ -> emptyList() }
 ) {
     val activeProfile = remoteProfiles.find { it.isActive }
     var localPath by remember(settings.localModelPath) { mutableStateOf(settings.localModelPath) }
@@ -381,10 +383,11 @@ fun AiModelsDialog(
     if (showAddProfileDialog) {
         RemoteProfileDialog(
             onDismiss = { showAddProfileDialog = false },
-            onConfirm = { label, localIp, publicIp, apiKey ->
-                onAddProfile(label, localIp, publicIp, apiKey)
+            onConfirm = { label, localIp, publicIp, modelName, apiKey ->
+                onAddProfile(label, localIp, publicIp, modelName, apiKey)
                 showAddProfileDialog = false
-            }
+            },
+            onFetchModels = onFetchModels
         )
     }
 
@@ -392,17 +395,19 @@ fun AiModelsDialog(
         RemoteProfileDialog(
             initialProfile = profile,
             onDismiss = { profileToEdit = null },
-            onConfirm = { label, localIp, publicIp, apiKey ->
+            onConfirm = { label, localIp, publicIp, modelName, apiKey ->
                 onUpdateProfile(
                     profile.copy(
                         label = label,
                         localIpUrl = localIp,
                         publicIpUrl = publicIp,
+                        modelName = modelName,
                         apiKey = apiKey
                     )
                 )
                 profileToEdit = null
-            }
+            },
+            onFetchModels = onFetchModels
         )
     }
 }
@@ -411,12 +416,19 @@ fun AiModelsDialog(
 fun RemoteProfileDialog(
     initialProfile: RemoteModelProfile? = null,
     onDismiss: () -> Unit,
-    onConfirm: (label: String, localIp: String, publicIp: String, apiKey: String) -> Unit
+    onConfirm: (label: String, localIp: String, publicIp: String, modelName: String, apiKey: String) -> Unit,
+    onFetchModels: suspend (url: String, apiKey: String) -> List<String> = { _, _ -> emptyList() }
 ) {
     var label by remember(initialProfile) { mutableStateOf(initialProfile?.label ?: "") }
     var localIp by remember(initialProfile) { mutableStateOf(initialProfile?.localIpUrl ?: "") }
     var publicIp by remember(initialProfile) { mutableStateOf(initialProfile?.publicIpUrl ?: "") }
+    var modelName by remember(initialProfile) { mutableStateOf(initialProfile?.modelName ?: "") }
     var apiKey by remember(initialProfile) { mutableStateOf(initialProfile?.apiKey ?: "") }
+
+    var availableModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isFetchingModels by remember { mutableStateOf(false) }
+    var modelDropdownExpanded by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -450,6 +462,72 @@ fun RemoteProfileDialog(
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        OutlinedTextField(
+                            value = modelName,
+                            onValueChange = { modelName = it },
+                            placeholder = { Text("e.g. gemma-2-9b-it or local-model") },
+                            label = { Text("Target Model ID (Optional)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            trailingIcon = {
+                                if (availableModels.isNotEmpty()) {
+                                    IconButton(onClick = { modelDropdownExpanded = !modelDropdownExpanded }) {
+                                        Text("▼", color = Color.Gray)
+                                    }
+                                }
+                            }
+                        )
+
+                        DropdownMenu(
+                            expanded = modelDropdownExpanded,
+                            onDismissRequest = { modelDropdownExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.85f)
+                        ) {
+                            availableModels.forEach { model ->
+                                DropdownMenuItem(
+                                    text = { Text(model) },
+                                    onClick = {
+                                        modelName = model
+                                        modelDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                isFetchingModels = true
+                                val target = cleanDesktopUrl(localIp.ifBlank { publicIp })
+                                if (target.isNotBlank()) {
+                                    val fetched = onFetchModels(target, apiKey)
+                                    if (fetched.isNotEmpty()) {
+                                        availableModels = fetched
+                                        modelDropdownExpanded = true
+                                        if (modelName.isBlank()) {
+                                            modelName = fetched.first()
+                                        }
+                                    }
+                                }
+                                isFetchingModels = false
+                            }
+                        },
+                        enabled = !isFetchingModels && (localIp.isNotBlank() || publicIp.isNotBlank())
+                    ) {
+                        Text(if (isFetchingModels) "Fetching models..." else "Fetch Models from Server")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
                 OutlinedTextField(
                     value = apiKey,
                     onValueChange = { apiKey = it },
@@ -466,6 +544,7 @@ fun RemoteProfileDialog(
                         label.ifBlank { "Desktop Server" },
                         localIp.trim(),
                         publicIp.trim(),
+                        modelName.trim(),
                         apiKey.trim()
                     )
                 },

@@ -66,6 +66,7 @@ data class ModelsListResponse(
 
 class RemoteModelClient(
     val targetUrl: String,
+    val selectedModel: String = "",
     private val apiKey: String = "",
     private val httpClient: HttpClient
 ) : ModelClient {
@@ -73,19 +74,17 @@ class RemoteModelClient(
     private val json = Json { ignoreUnknownKeys = true }
 
     fun getCleanUrl(): String {
-        var url = targetUrl.trim()
-        if (url.isEmpty()) return ""
-        if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) {
-            url = "http://$url"
+        val trimmed = targetUrl.trim().trimEnd('/')
+        if (trimmed.isEmpty()) return ""
+        var url = if (!trimmed.startsWith("http://", ignoreCase = true) && !trimmed.startsWith("https://", ignoreCase = true)) {
+            "http://$trimmed"
+        } else {
+            trimmed
         }
-        while (url.endsWith("/", ignoreCase = true) || url.endsWith("/v1", ignoreCase = true)) {
-            if (url.endsWith("/", ignoreCase = true)) {
-                url = url.trimEnd('/')
-            } else if (url.endsWith("/v1", ignoreCase = true)) {
-                url = url.substring(0, url.length - 3)
-            }
+        if (!url.endsWith("/v1", ignoreCase = true)) {
+            url = "$url/v1"
         }
-        return "$url/v1"
+        return url
     }
 
     private suspend fun checkPing(): Boolean {
@@ -129,11 +128,13 @@ class RemoteModelClient(
     override fun generateChatResponse(messages: List<ChatMessage>): Flow<String> = flow {
         try {
             val cleanUrl = getCleanUrl()
+            val reqModel = selectedModel.ifBlank { "local-model" }
             val response = httpClient.post("$cleanUrl/chat/completions") {
                 contentType(ContentType.Application.Json)
                 if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
                 setBody(
                     ChatRequest(
+                        model = reqModel,
                         messages = messages
                     )
                 )
@@ -198,6 +199,30 @@ class RemoteModelClient(
 
     override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
         return@withContext checkPing()
+    }
+
+    suspend fun fetchAvailableModels(): List<String> = withContext(Dispatchers.IO) {
+        val cleanUrl = getCleanUrl()
+        if (cleanUrl.isBlank()) return@withContext emptyList()
+
+        val list = mutableListOf<String>()
+        try {
+            val response = httpClient.get("$cleanUrl/models") {
+                if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
+            }
+            if (response.status.value in 200..299) {
+                val text = response.bodyAsText()
+                val parsed = json.decodeFromString<ModelsListResponse>(text)
+                val items = parsed.data ?: parsed.models ?: emptyList()
+                for (item in items) {
+                    val id = item.id ?: item.name
+                    if (!id.isNullOrBlank()) list.add(id)
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+        return@withContext list.distinct()
     }
 
     override suspend fun getContextCapacity(): Int = withContext(Dispatchers.IO) {

@@ -11,7 +11,7 @@ import androidx.room.RoomDatabase
         Settings::class,
         RemoteModelProfile::class
     ],
-    version = 6
+    version = 7
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun folderDao(): FolderDao

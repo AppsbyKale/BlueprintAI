@@ -76,6 +76,7 @@ class ModelManager @Inject constructor(
 
             RemoteModelClient(
                 targetUrl = selectedUrl,
+                selectedModel = activeProfile.modelName,
                 apiKey = activeProfile.apiKey,
                 httpClient = httpClient
             )

@@ -317,8 +317,8 @@ fun MainScreen(
             onStartDownload = { url ->
                 settingsViewModel.downloadGemmaModel(url)
             },
-            onAddProfile = { label, localIp, publicIp, apiKey ->
-                settingsViewModel.addRemoteProfile(label, localIp, publicIp, apiKey)
+            onAddProfile = { label, localIp, publicIp, modelName, apiKey ->
+                settingsViewModel.addRemoteProfile(label, localIp, publicIp, modelName, apiKey)
             },
             onUpdateProfile = { profile ->
                 settingsViewModel.updateRemoteProfile(profile)
@@ -331,6 +331,9 @@ fun MainScreen(
             },
             onDeleteProfile = { profile ->
                 settingsViewModel.deleteRemoteProfile(profile)
+            },
+            onFetchModels = { url, apiKey ->
+                settingsViewModel.fetchRemoteModels(url, apiKey)
             }
         )
     }

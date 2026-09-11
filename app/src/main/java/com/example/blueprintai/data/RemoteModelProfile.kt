@@ -10,6 +10,7 @@ data class RemoteModelProfile(
     val localIpUrl: String,                        // e.g., "http://192.168.1.50:1234/v1"
     val publicIpUrl: String = "",                  // e.g., "http://73.120.10.5:1234/v1"
     val activeIpMode: String = "LOCAL",            // "LOCAL" or "PUBLIC"
+    val modelName: String = "",                    // e.g., "gemma-2-9b-it", "llama-3.2-3b-instruct"
     val apiKey: String = "",                       // Optional API Key
     val isActive: Boolean = false,                 // Selected active server profile
     val createdAt: Long = System.currentTimeMillis()

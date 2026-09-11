@@ -13,6 +13,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
+import com.example.blueprintai.model.RemoteModelClient
+import io.ktor.client.HttpClient
 import javax.inject.Inject
 
 @HiltViewModel
@@ -21,7 +23,8 @@ class SettingsViewModel @Inject constructor(
     private val remoteModelProfileDao: RemoteModelProfileDao,
     private val backupManager: BackupManager,
     private val logManager: LogManager,
-    private val modelDownloader: ModelDownloader
+    private val modelDownloader: ModelDownloader,
+    private val httpClient: HttpClient
 ) : ViewModel() {
 
     val settings: StateFlow<Settings> = settingsDao.getSettings()
@@ -94,7 +97,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun addRemoteProfile(label: String, localIpUrl: String, publicIpUrl: String, apiKey: String) {
+    suspend fun fetchRemoteModels(url: String, apiKey: String = ""): List<String> {
+        val client = RemoteModelClient(targetUrl = url, apiKey = apiKey, httpClient = httpClient)
+        return client.fetchAvailableModels()
+    }
+
+    fun addRemoteProfile(label: String, localIpUrl: String, publicIpUrl: String, modelName: String, apiKey: String) {
         viewModelScope.launch {
             remoteModelProfileDao.clearActiveProfiles()
             val cleanLocal = cleanDesktopUrl(localIpUrl)
@@ -103,6 +111,7 @@ class SettingsViewModel @Inject constructor(
                 label = label,
                 localIpUrl = cleanLocal,
                 publicIpUrl = cleanPublic,
+                modelName = modelName.trim(),
                 apiKey = apiKey,
                 isActive = true
             )
