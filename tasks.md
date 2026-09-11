@@ -72,3 +72,13 @@
 - [x] Add visual Context Window Usage Bar at the top of the chat screen
 - [x] Add long-press "Debug: Inspect Context & Tokens" dialog showing exact model payload and token counts
 - [x] Enable native text selection, highlighting, and Cut/Copy/Paste toolbar across all prompts, responses, and dialogs
+
+## Phase 11 – Saved Remote Server Profiles, Manual IP Selection & Clean Dialogs
+- [x] Multi-profile Remote Model Server configuration (Room v7 entity with Label, Local IP, Public IP, Target Model ID, API Key)
+- [x] Streamlined top bar AI model selector (`Auto` | `Remote` | `Local`)
+- [x] Manual IP Mode switcher (`Local IP` vs `Public IP`) in 3-dot menu and Settings FilterChips
+- [x] Target Model Auto-Discovery (`GET /v1/models`) with 1-tap model list fetch in profile editor
+- [x] Qwen 2.5 & DeepSeek R1 reasoning/thinking content streaming support (`reasoning_content`)
+- [x] Interactive Profile Cards with direct Long-Press gesture and dedicated Edit/Delete action buttons
+- [x] Clean professional dialog formatting (stripped raw markdown asterisks, removed emojis, clean bullet points)
+- [x] Room database schema stability (`fallbackToDestructiveMigration` safeguards for smooth updates)
